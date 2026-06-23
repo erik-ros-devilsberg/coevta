@@ -73,3 +73,24 @@ Google Calendar-compatible events. Full CRUD; **update is PUT-only** (`PATCH` �
 - `all_day` → coerced to boolean; when `true`, `start_at` is snapped to `00:00:00` and `end_at` to `23:59:59` of the end date (same day when `end_at` omitted).
 - An empty `POST` body creates a valid event entirely from defaults.
 
+### Tasks (`auth:sanctum`)
+
+Google Tasks-compatible to-do items. Full CRUD; **update is PUT-only** (`PATCH` → `405`). No `status` — completion is `completed_at` alone (`null` = open).
+
+- `GET /api/v1/tasks` — paginated collection (25/page).
+- `POST /api/v1/tasks` — create; `201`.
+- `GET /api/v1/tasks/{id}` — one task; `404` if unknown.
+- `PUT /api/v1/tasks/{id}` — full replacement; `404` if unknown.
+- `POST /api/v1/tasks/{id}/complete` — **no body**; stamps `completed_at = now()`, returns `200` + the task. Idempotent.
+- `DELETE /api/v1/tasks/{id}` — `204`; `404` if unknown.
+
+**Model** (`App\Models\Task` extends `BaseModel`; UUID v7 id; **no timestamps**):
+`id`, `title`, `notes`, `due_at`, `completed_at`. Internal `due_has_time` column (not serialized) records whether `due_at` was given as a date or a datetime. Serialized via `App\Http\Resources\TaskResource`.
+
+**Forgiving input** (`App\Http\Requests\Concerns\NormalizesTaskInput`):
+- `title` → `"Untitled task"` when blank/missing.
+- `due_at` → accepts **date-only OR datetime**; tz-less assumed UTC, offsets converted; unparseable → `null`. Echoed back in the same granularity (date-only → `YYYY-MM-DD`, datetime → ISO 8601 UTC).
+- `completed_at` → datetime in UTC; unparseable → `null`.
+- `PUT` is a full replacement: omitting `completed_at` reopens the task.
+- An empty `POST` body creates a valid open task.
+
