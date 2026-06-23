@@ -11,6 +11,10 @@ return new class () extends Migration {
 			// UUID v7 primary key (see App\Models\BaseModel).
 			$table->uuid('id')->primary();
 
+			// Owner — each task belongs to exactly one user. Deleting the
+			// user removes their tasks.
+			$table->foreignId('user_id')->constrained()->cascadeOnDelete();
+
 			$table->string('title');
 			$table->text('notes')->nullable();
 			$table->dateTime('due_at')->nullable();

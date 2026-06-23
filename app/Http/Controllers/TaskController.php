@@ -5,43 +5,62 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreTaskRequest;
 use App\Http\Requests\UpdateTaskRequest;
 use App\Http\Resources\TaskResource;
-use App\Models\Task;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 
 class TaskController extends Controller
 {
-	public function index(): AnonymousResourceCollection
+	public function index(Request $request): AnonymousResourceCollection
 	{
-		return TaskResource::collection(Task::paginate(25));
+		/** @var User $user */
+		$user = $request->user();
+
+		return TaskResource::collection($user->tasks()->paginate(25));
 	}
 
 	public function store(StoreTaskRequest $request): JsonResponse
 	{
-		$task = Task::create($request->validated());
+		/** @var User $user */
+		$user = $request->user();
+
+		// Ownership is taken from the token, never the request body.
+		$task = $user->tasks()->create($request->validated());
 
 		return TaskResource::make($task)
 			->response()
 			->setStatusCode(Response::HTTP_CREATED);
 	}
 
-	public function show(Task $task): TaskResource
+	public function show(Request $request, string $task): TaskResource
 	{
-		return TaskResource::make($task);
+		/** @var User $user */
+		$user = $request->user();
+
+		// Scope to the owner: another user's id is simply "not found".
+		return TaskResource::make($user->tasks()->findOrFail($task));
 	}
 
-	public function update(UpdateTaskRequest $request, Task $task): TaskResource
+	public function update(UpdateTaskRequest $request, string $task): TaskResource
 	{
-		$task->update($request->validated());
+		/** @var User $user */
+		$user = $request->user();
 
-		return TaskResource::make($task);
+		$model = $user->tasks()->findOrFail($task);
+		$model->update($request->validated());
+
+		return TaskResource::make($model);
 	}
 
-	public function destroy(Task $task): Response
+	public function destroy(Request $request, string $task): Response
 	{
-		$task->delete();
+		/** @var User $user */
+		$user = $request->user();
+
+		$user->tasks()->findOrFail($task)->delete();
 
 		return response()->noContent();
 	}
@@ -49,10 +68,14 @@ class TaskController extends Controller
 	/**
 	 * Convenience: mark a task complete with no request body.
 	 */
-	public function complete(Task $task): TaskResource
+	public function complete(Request $request, string $task): TaskResource
 	{
-		$task->update(['completed_at' => Carbon::now('UTC')]);
+		/** @var User $user */
+		$user = $request->user();
 
-		return TaskResource::make($task);
+		$model = $user->tasks()->findOrFail($task);
+		$model->update(['completed_at' => Carbon::now('UTC')]);
+
+		return TaskResource::make($model);
 	}
 }

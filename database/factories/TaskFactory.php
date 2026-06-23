@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Task;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Carbon;
 
@@ -17,6 +18,7 @@ class TaskFactory extends Factory
 	public function definition(): array
 	{
 		return [
+			'user_id' => User::factory(),
 			'title' => $this->faker->sentence(3),
 			'notes' => $this->faker->optional()->paragraph(),
 			'due_at' => Carbon::instance($this->faker->dateTimeBetween('now', '+1 month'))

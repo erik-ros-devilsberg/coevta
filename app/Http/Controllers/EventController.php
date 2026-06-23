@@ -5,42 +5,61 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreEventRequest;
 use App\Http\Requests\UpdateEventRequest;
 use App\Http\Resources\EventResource;
-use App\Models\Event;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 
 class EventController extends Controller
 {
-	public function index(): AnonymousResourceCollection
+	public function index(Request $request): AnonymousResourceCollection
 	{
-		return EventResource::collection(Event::paginate(25));
+		/** @var User $user */
+		$user = $request->user();
+
+		return EventResource::collection($user->events()->paginate(25));
 	}
 
 	public function store(StoreEventRequest $request): JsonResponse
 	{
-		$event = Event::create($request->validated());
+		/** @var User $user */
+		$user = $request->user();
+
+		// Ownership is taken from the token, never the request body.
+		$event = $user->events()->create($request->validated());
 
 		return EventResource::make($event)
 			->response()
 			->setStatusCode(Response::HTTP_CREATED);
 	}
 
-	public function show(Event $event): EventResource
+	public function show(Request $request, string $event): EventResource
 	{
-		return EventResource::make($event);
+		/** @var User $user */
+		$user = $request->user();
+
+		// Scope to the owner: another user's id is simply "not found".
+		return EventResource::make($user->events()->findOrFail($event));
 	}
 
-	public function update(UpdateEventRequest $request, Event $event): EventResource
+	public function update(UpdateEventRequest $request, string $event): EventResource
 	{
-		$event->update($request->validated());
+		/** @var User $user */
+		$user = $request->user();
 
-		return EventResource::make($event);
+		$model = $user->events()->findOrFail($event);
+		$model->update($request->validated());
+
+		return EventResource::make($model);
 	}
 
-	public function destroy(Event $event): Response
+	public function destroy(Request $request, string $event): Response
 	{
-		$event->delete();
+		/** @var User $user */
+		$user = $request->user();
+
+		$user->events()->findOrFail($event)->delete();
 
 		return response()->noContent();
 	}

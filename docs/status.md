@@ -8,3 +8,4 @@ Maintained by the agile plugin. One row per sprint — updated by `/agile:shape`
 | Contacts REST API | contacts-rest-api | done | Google-compatible Contacts entity with full CRUD under /api/v1/contacts, Sanctum-protected. |
 | Events REST API | events-rest-api | done | Google Calendar-compatible Events entity with full CRUD under /api/v1/events; no recurrence/status. |
 | Tasks REST API | tasks-rest-api | done | Google Tasks-compatible Tasks entity with full CRUD under /api/v1/tasks; completion via completed_at, flexible due_at. |
+| Per-User Entity Ownership | per-user-entity-ownership | done | Bind contacts/events/tasks to an owning user; queries scoped to the token, cross-user access 404s. |

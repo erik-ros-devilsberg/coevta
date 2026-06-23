@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Event;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Carbon;
 
@@ -20,6 +21,7 @@ class EventFactory extends Factory
 			->setTimezone('UTC');
 
 		return [
+			'user_id' => User::factory(),
 			'title' => $this->faker->sentence(3),
 			'description' => $this->faker->optional()->paragraph(),
 			'location' => $this->faker->optional()->city(),

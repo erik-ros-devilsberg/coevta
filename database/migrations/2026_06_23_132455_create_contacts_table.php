@@ -11,6 +11,10 @@ return new class () extends Migration {
 			// UUID v7 primary key (see App\Models\BaseModel).
 			$table->uuid('id')->primary();
 
+			// Owner — each contact belongs to exactly one user. Deleting the
+			// user removes their contacts.
+			$table->foreignId('user_id')->constrained()->cascadeOnDelete();
+
 			$table->string('display_name');
 			$table->string('given_name')->nullable();
 			$table->string('family_name')->nullable();

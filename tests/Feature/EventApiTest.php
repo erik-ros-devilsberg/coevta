@@ -14,9 +14,18 @@ class EventApiTest extends TestCase
 {
 	use RefreshDatabase;
 
-	private function actAsUser(): void
+	private User $user;
+
+	/**
+	 * Authenticate as a fresh user and remember them, so records can be
+	 * associated with the same user the requests run as.
+	 */
+	private function actAsUser(): User
 	{
-		Sanctum::actingAs(User::factory()->create());
+		$this->user = User::factory()->create();
+		Sanctum::actingAs($this->user);
+
+		return $this->user;
 	}
 
 	// --- Authentication -----------------------------------------------------
@@ -45,7 +54,7 @@ class EventApiTest extends TestCase
 	public function test_index_returns_paginated_collection(): void
 	{
 		$this->actAsUser();
-		Event::factory()->count(30)->create();
+		Event::factory()->for($this->user)->count(30)->create();
 
 		$response = $this->getJson('/api/v1/events');
 
@@ -55,10 +64,23 @@ class EventApiTest extends TestCase
 		$response->assertJsonPath('meta.total', 30);
 	}
 
+	public function test_index_returns_only_the_authenticated_users_events(): void
+	{
+		$this->actAsUser();
+		Event::factory()->for($this->user)->count(2)->create();
+		Event::factory()->for(User::factory()->create())->count(3)->create();
+
+		$response = $this->getJson('/api/v1/events');
+
+		$response->assertOk();
+		$response->assertJsonCount(2, 'data');
+		$response->assertJsonPath('meta.total', 2);
+	}
+
 	public function test_show_returns_a_single_event(): void
 	{
 		$this->actAsUser();
-		$event = Event::factory()->create();
+		$event = Event::factory()->for($this->user)->create();
 
 		$this->getJson("/api/v1/events/{$event->id}")
 			->assertOk()
@@ -72,6 +94,14 @@ class EventApiTest extends TestCase
 		$this->getJson('/api/v1/events/non-existent')
 			->assertNotFound()
 			->assertJsonStructure(['message']);
+	}
+
+	public function test_show_other_users_event_returns_404(): void
+	{
+		$this->actAsUser();
+		$other = Event::factory()->for(User::factory()->create())->create();
+
+		$this->getJson("/api/v1/events/{$other->id}")->assertNotFound();
 	}
 
 	// --- Store: forgiving defaults -----------------------------------------
@@ -92,6 +122,23 @@ class EventApiTest extends TestCase
 			'/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/',
 			$response->json('data.id')
 		);
+	}
+
+	public function test_store_assigns_event_to_authenticated_user_ignoring_body_user_id(): void
+	{
+		$this->actAsUser();
+		$other = User::factory()->create();
+
+		$response = $this->postJson('/api/v1/events', [
+			'title' => 'Mine',
+			'user_id' => $other->id,
+		]);
+
+		$response->assertCreated();
+		$this->assertDatabaseHas('events', [
+			'id' => $response->json('data.id'),
+			'user_id' => $this->user->id,
+		]);
 	}
 
 	public function test_empty_body_creates_event_with_all_defaults(): void
@@ -214,7 +261,7 @@ class EventApiTest extends TestCase
 	public function test_resource_exposes_exactly_the_agreed_fields(): void
 	{
 		$this->actAsUser();
-		$event = Event::factory()->create();
+		$event = Event::factory()->for($this->user)->create();
 
 		$data = $this->getJson("/api/v1/events/{$event->id}")->json('data');
 
@@ -226,10 +273,20 @@ class EventApiTest extends TestCase
 		$this->assertSame($expected, $actual);
 	}
 
+	public function test_user_id_is_not_exposed_in_the_response(): void
+	{
+		$this->actAsUser();
+		$event = Event::factory()->for($this->user)->create();
+
+		$this->getJson("/api/v1/events/{$event->id}")
+			->assertOk()
+			->assertJsonMissingPath('data.user_id');
+	}
+
 	public function test_datetimes_are_iso8601_utc(): void
 	{
 		$this->actAsUser();
-		$event = Event::factory()->create();
+		$event = Event::factory()->for($this->user)->create();
 
 		$data = $this->getJson("/api/v1/events/{$event->id}")->json('data');
 
@@ -242,7 +299,7 @@ class EventApiTest extends TestCase
 	public function test_update_replaces_an_event(): void
 	{
 		$this->actAsUser();
-		$event = Event::factory()->create(['title' => 'Old']);
+		$event = Event::factory()->for($this->user)->create(['title' => 'Old']);
 
 		$response = $this->putJson("/api/v1/events/{$event->id}", [
 			'title' => 'New',
@@ -262,10 +319,19 @@ class EventApiTest extends TestCase
 			->assertNotFound();
 	}
 
+	public function test_update_other_users_event_returns_404(): void
+	{
+		$this->actAsUser();
+		$other = Event::factory()->for(User::factory()->create())->create();
+
+		$this->putJson("/api/v1/events/{$other->id}", ['title' => 'X'])
+			->assertNotFound();
+	}
+
 	public function test_patch_is_not_allowed(): void
 	{
 		$this->actAsUser();
-		$event = Event::factory()->create();
+		$event = Event::factory()->for($this->user)->create();
 
 		$this->patchJson("/api/v1/events/{$event->id}", ['title' => 'X'])
 			->assertStatus(405);
@@ -274,7 +340,7 @@ class EventApiTest extends TestCase
 	public function test_destroy_removes_an_event(): void
 	{
 		$this->actAsUser();
-		$event = Event::factory()->create();
+		$event = Event::factory()->for($this->user)->create();
 
 		$this->deleteJson("/api/v1/events/{$event->id}")->assertNoContent();
 		$this->assertDatabaseMissing('events', ['id' => $event->id]);
@@ -285,5 +351,14 @@ class EventApiTest extends TestCase
 		$this->actAsUser();
 
 		$this->deleteJson('/api/v1/events/non-existent')->assertNotFound();
+	}
+
+	public function test_destroy_other_users_event_returns_404(): void
+	{
+		$this->actAsUser();
+		$other = Event::factory()->for(User::factory()->create())->create();
+
+		$this->deleteJson("/api/v1/events/{$other->id}")->assertNotFound();
+		$this->assertDatabaseHas('events', ['id' => $other->id]);
 	}
 }

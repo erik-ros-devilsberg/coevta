@@ -7,6 +7,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -31,5 +32,35 @@ class User extends Authenticatable
 			'email_verified_at' => 'datetime',
 			'password' => 'hashed',
 		];
+	}
+
+	/**
+	 * The contacts owned by this user.
+	 *
+	 * @return HasMany<Contact, $this>
+	 */
+	public function contacts(): HasMany
+	{
+		return $this->hasMany(Contact::class);
+	}
+
+	/**
+	 * The events owned by this user.
+	 *
+	 * @return HasMany<Event, $this>
+	 */
+	public function events(): HasMany
+	{
+		return $this->hasMany(Event::class);
+	}
+
+	/**
+	 * The tasks owned by this user.
+	 *
+	 * @return HasMany<Task, $this>
+	 */
+	public function tasks(): HasMany
+	{
+		return $this->hasMany(Task::class);
 	}
 }

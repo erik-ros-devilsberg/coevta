@@ -11,6 +11,10 @@ return new class () extends Migration {
 			// UUID v7 primary key (see App\Models\BaseModel).
 			$table->uuid('id')->primary();
 
+			// Owner — each event belongs to exactly one user. Deleting the
+			// user removes their events.
+			$table->foreignId('user_id')->constrained()->cascadeOnDelete();
+
 			$table->string('title');
 			$table->text('description')->nullable();
 			$table->string('location')->nullable();

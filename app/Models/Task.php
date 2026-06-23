@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
@@ -10,6 +11,7 @@ use Illuminate\Support\Carbon;
  *
  * Completion is represented solely by completed_at (null = open).
  *
+ * @property int $user_id
  * @property string $id
  * @property string $title
  * @property string|null $notes
@@ -48,5 +50,15 @@ class Task extends BaseModel
 			'due_has_time' => 'boolean',
 			'completed_at' => 'datetime',
 		];
+	}
+
+	/**
+	 * The user who owns this task.
+	 *
+	 * @return BelongsTo<User, $this>
+	 */
+	public function user(): BelongsTo
+	{
+		return $this->belongsTo(User::class);
 	}
 }

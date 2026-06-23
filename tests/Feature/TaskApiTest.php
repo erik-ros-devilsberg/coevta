@@ -14,9 +14,18 @@ class TaskApiTest extends TestCase
 {
 	use RefreshDatabase;
 
-	private function actAsUser(): void
+	private User $user;
+
+	/**
+	 * Authenticate as a fresh user and remember them, so records can be
+	 * associated with the same user the requests run as.
+	 */
+	private function actAsUser(): User
 	{
-		Sanctum::actingAs(User::factory()->create());
+		$this->user = User::factory()->create();
+		Sanctum::actingAs($this->user);
+
+		return $this->user;
 	}
 
 	// --- Authentication -----------------------------------------------------
@@ -46,7 +55,7 @@ class TaskApiTest extends TestCase
 	public function test_index_returns_paginated_collection(): void
 	{
 		$this->actAsUser();
-		Task::factory()->count(30)->create();
+		Task::factory()->for($this->user)->count(30)->create();
 
 		$response = $this->getJson('/api/v1/tasks');
 
@@ -56,10 +65,23 @@ class TaskApiTest extends TestCase
 		$response->assertJsonPath('meta.total', 30);
 	}
 
+	public function test_index_returns_only_the_authenticated_users_tasks(): void
+	{
+		$this->actAsUser();
+		Task::factory()->for($this->user)->count(2)->create();
+		Task::factory()->for(User::factory()->create())->count(3)->create();
+
+		$response = $this->getJson('/api/v1/tasks');
+
+		$response->assertOk();
+		$response->assertJsonCount(2, 'data');
+		$response->assertJsonPath('meta.total', 2);
+	}
+
 	public function test_show_returns_a_single_task(): void
 	{
 		$this->actAsUser();
-		$task = Task::factory()->create();
+		$task = Task::factory()->for($this->user)->create();
 
 		$this->getJson("/api/v1/tasks/{$task->id}")
 			->assertOk()
@@ -73,6 +95,14 @@ class TaskApiTest extends TestCase
 		$this->getJson('/api/v1/tasks/non-existent')
 			->assertNotFound()
 			->assertJsonStructure(['message']);
+	}
+
+	public function test_show_other_users_task_returns_404(): void
+	{
+		$this->actAsUser();
+		$other = Task::factory()->for(User::factory()->create())->create();
+
+		$this->getJson("/api/v1/tasks/{$other->id}")->assertNotFound();
 	}
 
 	// --- Store: forgiving defaults -----------------------------------------
@@ -89,6 +119,23 @@ class TaskApiTest extends TestCase
 			'/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/',
 			$response->json('data.id')
 		);
+	}
+
+	public function test_store_assigns_task_to_authenticated_user_ignoring_body_user_id(): void
+	{
+		$this->actAsUser();
+		$other = User::factory()->create();
+
+		$response = $this->postJson('/api/v1/tasks', [
+			'title' => 'Mine',
+			'user_id' => $other->id,
+		]);
+
+		$response->assertCreated();
+		$this->assertDatabaseHas('tasks', [
+			'id' => $response->json('data.id'),
+			'user_id' => $this->user->id,
+		]);
 	}
 
 	public function test_empty_body_creates_open_task_with_default_title(): void
@@ -167,7 +214,7 @@ class TaskApiTest extends TestCase
 	public function test_resource_exposes_exactly_the_agreed_fields(): void
 	{
 		$this->actAsUser();
-		$task = Task::factory()->create();
+		$task = Task::factory()->for($this->user)->create();
 
 		$data = $this->getJson("/api/v1/tasks/{$task->id}")->json('data');
 
@@ -179,12 +226,22 @@ class TaskApiTest extends TestCase
 		$this->assertSame($expected, $actual);
 	}
 
+	public function test_user_id_is_not_exposed_in_the_response(): void
+	{
+		$this->actAsUser();
+		$task = Task::factory()->for($this->user)->create();
+
+		$this->getJson("/api/v1/tasks/{$task->id}")
+			->assertOk()
+			->assertJsonMissingPath('data.user_id');
+	}
+
 	// --- Complete convenience endpoint -------------------------------------
 
 	public function test_complete_marks_task_done_with_no_body(): void
 	{
 		$this->actAsUser();
-		$task = Task::factory()->create(['completed_at' => null]);
+		$task = Task::factory()->for($this->user)->create(['completed_at' => null]);
 
 		$response = $this->postJson("/api/v1/tasks/{$task->id}/complete");
 
@@ -202,12 +259,21 @@ class TaskApiTest extends TestCase
 		$this->postJson('/api/v1/tasks/non-existent/complete')->assertNotFound();
 	}
 
+	public function test_complete_other_users_task_returns_404(): void
+	{
+		$this->actAsUser();
+		$other = Task::factory()->for(User::factory()->create())->create(['completed_at' => null]);
+
+		$this->postJson("/api/v1/tasks/{$other->id}/complete")->assertNotFound();
+		$this->assertNull($other->fresh()->completed_at);
+	}
+
 	// --- Update (PUT only) / Destroy ---------------------------------------
 
 	public function test_update_replaces_a_task(): void
 	{
 		$this->actAsUser();
-		$task = Task::factory()->create(['title' => 'Old']);
+		$task = Task::factory()->for($this->user)->create(['title' => 'Old']);
 
 		$response = $this->putJson("/api/v1/tasks/{$task->id}", ['title' => 'New']);
 
@@ -219,7 +285,7 @@ class TaskApiTest extends TestCase
 	public function test_update_without_completed_at_reopens_the_task(): void
 	{
 		$this->actAsUser();
-		$task = Task::factory()->create(['completed_at' => now()]);
+		$task = Task::factory()->for($this->user)->create(['completed_at' => now()]);
 
 		$response = $this->putJson("/api/v1/tasks/{$task->id}", ['title' => 'Reopened']);
 
@@ -235,10 +301,18 @@ class TaskApiTest extends TestCase
 		$this->putJson('/api/v1/tasks/non-existent', ['title' => 'X'])->assertNotFound();
 	}
 
+	public function test_update_other_users_task_returns_404(): void
+	{
+		$this->actAsUser();
+		$other = Task::factory()->for(User::factory()->create())->create();
+
+		$this->putJson("/api/v1/tasks/{$other->id}", ['title' => 'X'])->assertNotFound();
+	}
+
 	public function test_patch_is_not_allowed(): void
 	{
 		$this->actAsUser();
-		$task = Task::factory()->create();
+		$task = Task::factory()->for($this->user)->create();
 
 		$this->patchJson("/api/v1/tasks/{$task->id}", ['title' => 'X'])->assertStatus(405);
 	}
@@ -246,7 +320,7 @@ class TaskApiTest extends TestCase
 	public function test_destroy_removes_a_task(): void
 	{
 		$this->actAsUser();
-		$task = Task::factory()->create();
+		$task = Task::factory()->for($this->user)->create();
 
 		$this->deleteJson("/api/v1/tasks/{$task->id}")->assertNoContent();
 		$this->assertDatabaseMissing('tasks', ['id' => $task->id]);
@@ -257,5 +331,14 @@ class TaskApiTest extends TestCase
 		$this->actAsUser();
 
 		$this->deleteJson('/api/v1/tasks/non-existent')->assertNotFound();
+	}
+
+	public function test_destroy_other_users_task_returns_404(): void
+	{
+		$this->actAsUser();
+		$other = Task::factory()->for(User::factory()->create())->create();
+
+		$this->deleteJson("/api/v1/tasks/{$other->id}")->assertNotFound();
+		$this->assertDatabaseHas('tasks', ['id' => $other->id]);
 	}
 }

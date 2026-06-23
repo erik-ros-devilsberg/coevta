@@ -12,6 +12,17 @@ These were decided in the Project Foundation sprint and apply to every later fea
 - **API prefix / versioning**: all routes under `/api/v1` (the `/api` prefix comes from `bootstrap/app.php`; the `v1` segment from a route group in `routes/api.php`).
 - **Auth**: Laravel **Sanctum** token auth. Protected routes use the `auth:sanctum` middleware. Tokens are minted via the `coevta:create-token {email}` artisan command (creates the user if absent) — the minimal "standard user" path until a full user-management story exists.
 - **Soft deletes**: off. `DELETE` removes rows permanently.
+- **Per-user ownership**: every domain entity (contacts, events, tasks) belongs to a
+  user. Each has a non-nullable `user_id` FK to `users.id` (`foreignId('user_id')
+  ->constrained()->cascadeOnDelete()` — deleting a user removes their records). `user_id`
+  is set from the authenticated user (`$request->user()`), **never** from the request body
+  (it is not `$fillable`; it is set implicitly via the owning relation on create — a
+  `user_id` in the body is ignored). `user_id` is **never serialized** in API responses.
+  Enforcement is **explicit controller scoping** (not a global scope): every controller
+  action queries through `$user->{relation}()` (`index`/`store`/`show`/`update`/`destroy`
+  + tasks `complete`), so a record owned by another user is **not found** (`404`), never
+  `403` — we do not reveal that it exists. Entity models declare `belongsTo(User)`; `User`
+  declares `hasMany` `contacts()`/`events()`/`tasks()`.
 - **Pagination**: Laravel default paginator, 25 per page (applied per-resource in later stories).
 - **Database**: MariaDB. Dev DB `coevta`; test DB `coevta_test` (configured in `phpunit.xml`). Connection driver: `mariadb`.
 

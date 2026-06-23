@@ -3,11 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
  * An event — a minimalist, Google Calendar-compatible calendar entry.
  *
+ * @property int $user_id
  * @property string $id
  * @property string $title
  * @property string|null $description
@@ -48,5 +50,15 @@ class Event extends BaseModel
 			'end_at' => 'datetime',
 			'all_day' => 'boolean',
 		];
+	}
+
+	/**
+	 * The user who owns this event.
+	 *
+	 * @return BelongsTo<User, $this>
+	 */
+	public function user(): BelongsTo
+	{
+		return $this->belongsTo(User::class);
 	}
 }

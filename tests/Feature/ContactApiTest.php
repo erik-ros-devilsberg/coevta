@@ -13,9 +13,18 @@ class ContactApiTest extends TestCase
 {
 	use RefreshDatabase;
 
-	private function actAsUser(): void
+	private User $user;
+
+	/**
+	 * Authenticate as a fresh user and remember them, so records can be
+	 * associated with the same user the requests run as.
+	 */
+	private function actAsUser(): User
 	{
-		Sanctum::actingAs(User::factory()->create());
+		$this->user = User::factory()->create();
+		Sanctum::actingAs($this->user);
+
+		return $this->user;
 	}
 
 	private function validPayload(array $overrides = []): array
@@ -60,7 +69,7 @@ class ContactApiTest extends TestCase
 	public function test_index_returns_paginated_collection(): void
 	{
 		$this->actAsUser();
-		Contact::factory()->count(30)->create();
+		Contact::factory()->for($this->user)->count(30)->create();
 
 		$response = $this->getJson('/api/v1/contacts');
 
@@ -70,12 +79,25 @@ class ContactApiTest extends TestCase
 		$response->assertJsonPath('meta.total', 30);
 	}
 
+	public function test_index_returns_only_the_authenticated_users_contacts(): void
+	{
+		$this->actAsUser();
+		Contact::factory()->for($this->user)->count(2)->create();
+		Contact::factory()->for(User::factory()->create())->count(3)->create();
+
+		$response = $this->getJson('/api/v1/contacts');
+
+		$response->assertOk();
+		$response->assertJsonCount(2, 'data');
+		$response->assertJsonPath('meta.total', 2);
+	}
+
 	// --- Show ---------------------------------------------------------------
 
 	public function test_show_returns_a_single_contact(): void
 	{
 		$this->actAsUser();
-		$contact = Contact::factory()->create();
+		$contact = Contact::factory()->for($this->user)->create();
 
 		$response = $this->getJson("/api/v1/contacts/{$contact->id}");
 
@@ -92,6 +114,14 @@ class ContactApiTest extends TestCase
 
 		$response->assertNotFound();
 		$response->assertJsonStructure(['message']);
+	}
+
+	public function test_show_other_users_contact_returns_404(): void
+	{
+		$this->actAsUser();
+		$other = Contact::factory()->for(User::factory()->create())->create();
+
+		$this->getJson("/api/v1/contacts/{$other->id}")->assertNotFound();
 	}
 
 	// --- Store --------------------------------------------------------------
@@ -111,6 +141,21 @@ class ContactApiTest extends TestCase
 		// UUID v7: the version nibble (first char of the 3rd group) is '7'.
 		$this->assertMatchesRegularExpression('/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/', $id);
 		$this->assertDatabaseHas('contacts', ['id' => $id, 'email' => 'ada@example.com']);
+	}
+
+	public function test_store_assigns_contact_to_authenticated_user_ignoring_body_user_id(): void
+	{
+		$this->actAsUser();
+		$other = User::factory()->create();
+
+		// A user_id in the body must be ignored — ownership comes from the token.
+		$response = $this->postJson('/api/v1/contacts', $this->validPayload(['user_id' => $other->id]));
+
+		$response->assertCreated();
+		$this->assertDatabaseHas('contacts', [
+			'id' => $response->json('data.id'),
+			'user_id' => $this->user->id,
+		]);
 	}
 
 	public function test_store_requires_display_name(): void
@@ -157,7 +202,7 @@ class ContactApiTest extends TestCase
 	public function test_resource_exposes_exactly_the_agreed_fields(): void
 	{
 		$this->actAsUser();
-		$contact = Contact::factory()->create();
+		$contact = Contact::factory()->for($this->user)->create();
 
 		$data = $this->getJson("/api/v1/contacts/{$contact->id}")->json('data');
 
@@ -172,12 +217,22 @@ class ContactApiTest extends TestCase
 		$this->assertSame($expected, $actual);
 	}
 
+	public function test_user_id_is_not_exposed_in_the_response(): void
+	{
+		$this->actAsUser();
+		$contact = Contact::factory()->for($this->user)->create();
+
+		$this->getJson("/api/v1/contacts/{$contact->id}")
+			->assertOk()
+			->assertJsonMissingPath('data.user_id');
+	}
+
 	// --- Update (PUT only) --------------------------------------------------
 
 	public function test_update_replaces_a_contact(): void
 	{
 		$this->actAsUser();
-		$contact = Contact::factory()->create(['display_name' => 'Old Name']);
+		$contact = Contact::factory()->for($this->user)->create(['display_name' => 'Old Name']);
 
 		$response = $this->putJson("/api/v1/contacts/{$contact->id}", $this->validPayload(['display_name' => 'New Name']));
 
@@ -195,10 +250,19 @@ class ContactApiTest extends TestCase
 		$response->assertNotFound();
 	}
 
+	public function test_update_other_users_contact_returns_404(): void
+	{
+		$this->actAsUser();
+		$other = Contact::factory()->for(User::factory()->create())->create();
+
+		$this->putJson("/api/v1/contacts/{$other->id}", $this->validPayload())
+			->assertNotFound();
+	}
+
 	public function test_update_requires_display_name(): void
 	{
 		$this->actAsUser();
-		$contact = Contact::factory()->create();
+		$contact = Contact::factory()->for($this->user)->create();
 
 		$response = $this->putJson("/api/v1/contacts/{$contact->id}", $this->validPayload(['display_name' => null]));
 
@@ -209,7 +273,7 @@ class ContactApiTest extends TestCase
 	public function test_patch_is_not_allowed(): void
 	{
 		$this->actAsUser();
-		$contact = Contact::factory()->create();
+		$contact = Contact::factory()->for($this->user)->create();
 
 		$response = $this->patchJson("/api/v1/contacts/{$contact->id}", $this->validPayload());
 
@@ -221,7 +285,7 @@ class ContactApiTest extends TestCase
 	public function test_destroy_removes_a_contact(): void
 	{
 		$this->actAsUser();
-		$contact = Contact::factory()->create();
+		$contact = Contact::factory()->for($this->user)->create();
 
 		$response = $this->deleteJson("/api/v1/contacts/{$contact->id}");
 
@@ -236,5 +300,15 @@ class ContactApiTest extends TestCase
 		$response = $this->deleteJson('/api/v1/contacts/non-existent');
 
 		$response->assertNotFound();
+	}
+
+	public function test_destroy_other_users_contact_returns_404(): void
+	{
+		$this->actAsUser();
+		$other = Contact::factory()->for(User::factory()->create())->create();
+
+		$this->deleteJson("/api/v1/contacts/{$other->id}")->assertNotFound();
+		// The other user's contact must remain untouched.
+		$this->assertDatabaseHas('contacts', ['id' => $other->id]);
 	}
 }
