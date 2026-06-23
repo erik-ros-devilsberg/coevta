@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ContactController;
 use App\Http\Controllers\HealthController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -13,5 +14,9 @@ Route::prefix('v1')->group(function () {
 	// Authenticated routes require a valid Sanctum bearer token.
 	Route::middleware('auth:sanctum')->group(function () {
 		Route::get('/user', fn (Request $request) => $request->user())->name('user');
+
+		// Contacts: full CRUD. Update is PUT-only (full replacement) — no PATCH.
+		Route::apiResource('contacts', ContactController::class)->except('update');
+		Route::put('contacts/{contact}', [ContactController::class, 'update'])->name('contacts.update');
 	});
 });

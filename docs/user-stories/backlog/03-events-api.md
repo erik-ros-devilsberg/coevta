@@ -22,7 +22,6 @@ Full CRUD: list, show, create, update, delete.
 | `start_at` | datetime | yes | `start.dateTime` | ISO 8601 UTC |
 | `end_at` | datetime | yes | `end.dateTime` | ISO 8601 UTC; must be ≥ `start_at` |
 | `status` | enum | no | `status` | `confirmed` \| `tentative` \| `cancelled`; default `confirmed` |
-| `created_at` / `updated_at` | datetime | auto | — | ISO 8601 UTC |
 
 ### Open questions to fine-tune
 

@@ -40,3 +40,16 @@ These were decided in the Project Foundation sprint and apply to every later fea
 - `GET /api/v1/ping` — public liveness check, returns `{ status: "ok", version: <from version.json via config('coevta.version')>, time: <ISO8601 UTC> }`.
 - `GET /api/v1/user` — returns the authenticated user (requires `auth:sanctum`).
 
+### Contacts (`auth:sanctum`)
+
+Google People-compatible contact records. Full CRUD; **update is PUT-only** (full replacement) — `PATCH` returns `405`.
+
+- `GET /api/v1/contacts` — paginated collection (25/page).
+- `POST /api/v1/contacts` — create; `201` with the resource. `display_name` required.
+- `GET /api/v1/contacts/{id}` — one contact; `404` if unknown.
+- `PUT /api/v1/contacts/{id}` — full replacement; `404` if unknown.
+- `DELETE /api/v1/contacts/{id}` — `204`; `404` if unknown.
+
+**Model** (`App\Models\Contact` extends `BaseModel`; UUID v7 id; **no timestamps**):
+`id`, `display_name` (required), `given_name`, `family_name`, `email`, `phone`, `organization`, `notes`, `address`, `birthday` (date-only, serialized `YYYY-MM-DD`). No `email` uniqueness. Only fillable fields persist; unknown body fields are ignored. Serialized via `App\Http\Resources\ContactResource`.
+
