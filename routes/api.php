@@ -1,0 +1,17 @@
+<?php
+
+use App\Http\Controllers\HealthController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+
+// All API routes are versioned under /api/v1. The `api` path prefix is applied
+// by bootstrap/app.php; this group adds the version segment.
+Route::prefix('v1')->group(function () {
+	// Public liveness check — no authentication required.
+	Route::get('/ping', HealthController::class)->name('ping');
+
+	// Authenticated routes require a valid Sanctum bearer token.
+	Route::middleware('auth:sanctum')->group(function () {
+		Route::get('/user', fn (Request $request) => $request->user())->name('user');
+	});
+});

@@ -1,0 +1,13 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: max
+
+    paths:
+        - app
+        - database
+        - routes
+
+    # Tests are not analysed at max level to avoid noise from Laravel's
+    # testing helpers; application code is the contract we enforce.
