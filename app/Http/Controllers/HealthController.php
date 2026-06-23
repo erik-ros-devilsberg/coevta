@@ -14,6 +14,7 @@ class HealthController extends Controller
 	{
 		return response()->json([
 			'status' => 'ok',
+			'version' => config('coevta.version'),
 			// RFC 3339 / ISO 8601 in UTC (trailing Z) — Google-compatible.
 			'time' => Carbon::now('UTC')->toIso8601ZuluString('microsecond'),
 		]);

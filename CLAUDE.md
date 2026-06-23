@@ -37,11 +37,19 @@ Suggested on top of PHPUnit + PHPStan. Adopt incrementally via the foundation st
 ## Common commands
 
 ```bash
+composer gates                     # run ALL quality gates (style, stan, tests, coverage, audit)
 composer test                      # phpunit
 composer stan                      # phpstan / larastan
 composer fix                       # php-cs-fixer fix (tabs)
-vendor/bin/php-cs-fixer fix --dry-run --diff   # code style check
+composer fix:check                 # php-cs-fixer verify only (no changes)
+composer coverage                  # phpunit + 90% coverage gate (needs pcov/xdebug)
 ```
+
+**Run `composer gates` before finishing any unit of work / before committing.** It is the
+single source of truth for "is this done": it runs PHP-CS-Fixer (verify), PHPStan (max),
+PHPUnit, the 90% coverage gate (skipped automatically if no coverage driver is installed),
+and `composer audit`. It runs every gate even if one fails, then exits non-zero if any did.
+The script lives at `bin/gates.sh`.
 
 ## Agile Workflow
 

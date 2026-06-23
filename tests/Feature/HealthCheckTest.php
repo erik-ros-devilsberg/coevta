@@ -23,4 +23,14 @@ class HealthCheckTest extends TestCase
 		$this->assertNotNull($time);
 		$this->assertStringEndsWith('Z', $time);
 	}
+
+	public function test_ping_exposes_the_application_version(): void
+	{
+		$response = $this->getJson('/api/v1/ping');
+
+		$response->assertOk();
+		$response->assertJsonStructure(['version']);
+		$response->assertJson(['version' => config('coevta.version')]);
+		$this->assertNotEmpty($response->json('version'));
+	}
 }

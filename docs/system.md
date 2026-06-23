@@ -28,6 +28,7 @@ These were decided in the Project Foundation sprint and apply to every later fea
 
 ## Quality tooling
 
+- **`composer gates`** — runs every gate below in one pass (`bin/gates.sh`): style verify, PHPStan, tests, coverage (auto-skipped without a driver), audit. Runs all gates even on failure; exits non-zero if any fail. **Run this before committing.**
 - **PHPUnit** — tests under `/tests`; `composer test`.
 - **PHPStan / Larastan** at **max** level, zero errors; `composer stan` (`phpstan.neon` analyses `app`, `database`, `routes`).
 - **PHP-CS-Fixer** — `@PSR12` with **tab** indentation (`->setIndent("\t")`); `composer fix` / `composer fix:check`.
@@ -36,6 +37,6 @@ These were decided in the Project Foundation sprint and apply to every later fea
 
 ## Endpoints (so far)
 
-- `GET /api/v1/ping` — public liveness check, returns `{ status: "ok", time: <ISO8601 UTC> }`.
+- `GET /api/v1/ping` — public liveness check, returns `{ status: "ok", version: <from version.json via config('coevta.version')>, time: <ISO8601 UTC> }`.
 - `GET /api/v1/user` — returns the authenticated user (requires `auth:sanctum`).
 

@@ -63,6 +63,10 @@
             "@php vendor/bin/phpunit --coverage-clover=build/coverage/clover.xml",
             "@php bin/coverage-check.php build/coverage/clover.xml 90"
         ],
+        "gates": [
+            "Composer\\Config::disableProcessTimeout",
+            "bash bin/gates.sh"
+        ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"
