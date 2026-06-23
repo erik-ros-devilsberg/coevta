@@ -53,3 +53,23 @@ Google People-compatible contact records. Full CRUD; **update is PUT-only** (ful
 **Model** (`App\Models\Contact` extends `BaseModel`; UUID v7 id; **no timestamps**):
 `id`, `display_name` (required), `given_name`, `family_name`, `email`, `phone`, `organization`, `notes`, `address`, `birthday` (date-only, serialized `YYYY-MM-DD`). No `email` uniqueness. Only fillable fields persist; unknown body fields are ignored. Serialized via `App\Http\Resources\ContactResource`.
 
+### Events (`auth:sanctum`)
+
+Google Calendar-compatible events. Full CRUD; **update is PUT-only** (`PATCH` → `405`). No recurrence, no `status`.
+
+- `GET /api/v1/events` — paginated collection (25/page).
+- `POST /api/v1/events` — create; `201`.
+- `GET /api/v1/events/{id}` — one event; `404` if unknown.
+- `PUT /api/v1/events/{id}` — full replacement; `404` if unknown.
+- `DELETE /api/v1/events/{id}` — `204`; `404` if unknown.
+
+**Model** (`App\Models\Event` extends `BaseModel`; UUID v7 id; **no timestamps**):
+`id`, `title`, `description`, `location`, `start_at`, `end_at`, `all_day`. Datetimes stored/returned as ISO 8601 UTC (`Z`). Serialized via `App\Http\Resources\EventResource`.
+
+**Forgiving input** (the "minimize computer says no" principle — see CLAUDE.md). Normalization lives in `App\Http\Requests\Concerns\NormalizesEventInput::prepareForValidation()`, shared by store + update. Events are never rejected on these fields:
+- `title` → `"Untitled event"` when blank/missing.
+- `start_at` → parsed (tz-less assumed UTC, offsets converted to UTC); falls back to now() if unparseable.
+- `end_at` → `start_at + 1 hour` when missing or before `start_at`; kept when `== start_at`.
+- `all_day` → coerced to boolean; when `true`, `start_at` is snapped to `00:00:00` and `end_at` to `23:59:59` of the end date (same day when `end_at` omitted).
+- An empty `POST` body creates a valid event entirely from defaults.
+

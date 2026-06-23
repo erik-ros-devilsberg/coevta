@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\EventController;
 use App\Http\Controllers\HealthController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -18,5 +19,9 @@ Route::prefix('v1')->group(function () {
 		// Contacts: full CRUD. Update is PUT-only (full replacement) — no PATCH.
 		Route::apiResource('contacts', ContactController::class)->except('update');
 		Route::put('contacts/{contact}', [ContactController::class, 'update'])->name('contacts.update');
+
+		// Events: full CRUD. Update is PUT-only (full replacement) — no PATCH.
+		Route::apiResource('events', EventController::class)->except('update');
+		Route::put('events/{event}', [EventController::class, 'update'])->name('events.update');
 	});
 });

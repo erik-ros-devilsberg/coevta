@@ -17,10 +17,8 @@ Full CRUD: list, show, create, update, delete.
 | `id` | uuid | auto | `id` | per foundation id strategy |
 | `title` | string | yes | `title` | task title |
 | `notes` | text | no | `notes` | free-text body |
-| `status` | enum | no | `status` | `needsAction` \| `completed`; default `needsAction` |
 | `due_at` | datetime | no | `due` | when the task is due (Google stores date-only RFC 3339) |
 | `completed_at` | datetime | no | `completed` | set when status → `completed` |
-| `created_at` / `updated_at` | datetime | auto | `updated` | ISO 8601 UTC |
 
 ### Open questions to fine-tune
 

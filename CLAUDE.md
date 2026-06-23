@@ -34,6 +34,25 @@ Suggested on top of PHPUnit + PHPStan. Adopt incrementally via the foundation st
 - Keep controllers thin — validation in FormRequests, serialization in Resources
 - Field names mirror Google API naming where practical so payloads are easy to map
 
+## Design principles
+
+### Minimize "computer says no"
+
+The API should be forgiving and easy to use. Prefer applying a sensible **default** over
+rejecting a request. Validation should *normalize and coerce* input rather than refuse it
+wherever a reasonable interpretation exists:
+
+- Missing optional values get sensible defaults (e.g. an event's `end_at` defaults to
+  `start_at + 1 hour`; a missing timezone is assumed to be **UTC**).
+- Out-of-order or contradictory values are corrected to something sensible rather than
+  returning `422` (e.g. an `end_at` before `start_at` is reset to the default).
+- Reserve hard validation errors for input we genuinely cannot interpret (e.g. malformed
+  JSON), not for input we can reasonably fill in.
+
+Put the defaulting/normalization logic in the FormRequest's `prepareForValidation()` so
+store and update behave identically and validation runs against the resolved values.
+Document each entity's defaults in `docs/system.md`.
+
 ## Common commands
 
 ```bash
