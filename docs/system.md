@@ -46,10 +46,41 @@ These were decided in the Project Foundation sprint and apply to every later fea
 - **composer audit** — clean.
 - **Coverage** — `composer coverage` runs PHPUnit with clover output and `bin/coverage-check.php` enforces a **90%** line-coverage minimum. **Requires a coverage driver (pcov or xdebug)**, which is not installed in the current environment — the gate is configured but cannot execute here until a driver is added.
 
+## Authentication & login
+
+Two front doors over the same `users` credentials (`UserFactory` default password is
+`password`):
+
+- **Web (browser)** — the `web` session guard (`Auth::attempt()` + session + CSRF). Used
+  by the Blade pages. A successful login regenerates the session; logout invalidates it.
+- **API (clients)** — a token-issuing endpoint that returns a Sanctum personal access
+  token (`$user->createToken()`), the same model the `coevta:create-token` command mints.
+
+Auth is deliberately **exempt from the "minimize computer says no" principle**: wrong
+credentials must fail (never defaulted). Error messages are generic and do not reveal
+whether an email is registered. Both login routes are rate-limited (`throttle:6,1`).
+There is no registration yet — users come from `coevta:create-token` (or a future
+user-management story).
+
+## Web layer (Blade)
+
+The first server-rendered (HTML) surface; minimal/unstyled (`resources/views`, shared
+`layouts.app`). Session/CSRF stack is the framework default via `routes/web.php`.
+
+- `GET /` (`home`) — public landing page (`PageController@landing`).
+- `GET /login` (`login`) — login form (`LoginController@showLogin`); redirects authenticated
+  users to `/dashboard`.
+- `POST /login` — `LoginController@login`; `Auth::attempt()`, on failure redirects back with
+  a generic error. `throttle:6,1`.
+- `POST /logout` (`logout`) — `LoginController@logout`; ends the session (`auth`).
+- `GET /dashboard` (`dashboard`) — authenticated placeholder (`auth`); guests → `/login`.
+
 ## Endpoints (so far)
 
 - `GET /api/v1/ping` — public liveness check, returns `{ status: "ok", version: <from version.json via config('coevta.version')>, time: <ISO8601 UTC> }`.
+- `POST /api/v1/login` — public; `{ email, password }` → `200 { token }`; bad creds `401` (generic message, no token); missing fields `422`. `throttle:6,1`.
 - `GET /api/v1/user` — returns the authenticated user (requires `auth:sanctum`).
+- `POST /api/v1/logout` — `auth:sanctum`; revokes the current access token, returns `204`.
 
 ### Contacts (`auth:sanctum`)
 

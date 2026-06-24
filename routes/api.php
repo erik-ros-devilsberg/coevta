@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ApiLoginController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\HealthController;
@@ -13,9 +14,17 @@ Route::prefix('v1')->group(function () {
 	// Public liveness check — no authentication required.
 	Route::get('/ping', HealthController::class)->name('ping');
 
+	// Public login — exchanges credentials for a Sanctum token. Rate-limited.
+	Route::post('/login', [ApiLoginController::class, 'login'])
+		->middleware('throttle:6,1')
+		->name('api.login');
+
 	// Authenticated routes require a valid Sanctum bearer token.
 	Route::middleware('auth:sanctum')->group(function () {
 		Route::get('/user', fn (Request $request) => $request->user())->name('user');
+
+		// Revoke the token used for the current request.
+		Route::post('/logout', [ApiLoginController::class, 'logout'])->name('api.logout');
 
 		// Contacts: full CRUD. Update is PUT-only (full replacement) — no PATCH.
 		Route::apiResource('contacts', ContactController::class)->except('update');
