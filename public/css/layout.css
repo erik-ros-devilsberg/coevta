@@ -16,7 +16,7 @@
 	padding: 6rem 0;
 }
 
-/* SPA views (login, dashboard, reset) — a centred column. */
+/* SPA auth views (login, reset) — a centred column. */
 .app-view {
 	display: flex;
 	flex-direction: column;
@@ -24,6 +24,26 @@
 	min-height: 100vh;
 	padding: 4rem 0;
 	gap: 0.5rem;
+}
+
+/* Authenticated module pages — nav bar on top, content below. */
+.app-main {
+	padding: 2rem var(--container-pad) 4rem;
+}
+
+.app-main h1 {
+	margin-top: 1rem;
+}
+
+@media (max-width: 768px) {
+	.nav {
+		flex-wrap: wrap;
+		gap: 1rem;
+	}
+
+	.nav__links {
+		gap: 1rem;
+	}
 }
 
 .hero__title {

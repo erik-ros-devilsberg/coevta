@@ -87,19 +87,32 @@ files (`response(file_get_contents(...))`, never `view()`).
 
 - **Landing** — `GET /` (`home`) serves the static `public/landing.html`. Public marketing
   page; CTA links to `/login`.
-- **App (Vue SPA)** — `GET /login` (`login`), `/dashboard` (`dashboard`), `/reset-password`
-  (`password.reset`) all serve the same static shell `public/app.html`. The SPA's
-  client-side router (history mode) renders the right view, so deep links resolve instead of
-  404ing. Auth is enforced **client-side** (the dashboard guard bounces tokenless users to
-  `/login`); the server never 302s guests.
+- **App (Vue SPA)** — `GET /login` (`login`), `/dashboard` (`dashboard`), `/contacts`
+  (`contacts`), `/reset-password` (`password.reset`) all serve the same static shell
+  `public/app.html`. The SPA's client-side router (history mode) renders the right view, so
+  deep links resolve instead of 404ing. Auth is enforced **client-side** (`requiresAuth`
+  routes bounce tokenless users to `/login`); the server never 302s guests. **Every new SPA
+  route needs both a router entry and a `routes/web.php` shell route** (covered by
+  `SpaServingTest`).
 
 **SPA source** lives in `resources/spa/` (Vue 3 + vue-router):
-- `main.js` → `App.vue` → `router.js` (routes: login, dashboard, reset-password).
-- Views: `LoginView`, `DashboardView`, `ResetPasswordView` (the reset view shows the
-  "choose a new password" form when the URL carries a token, else a "request a link" form).
+- `main.js` → `App.vue` → `router.js`.
+- **Auth views**: `LoginView`, `ResetPasswordView` (the reset view shows the "choose a new
+  password" form when the URL carries a token, else a "request a link" form) — centred,
+  no nav.
+- **App shell**: authenticated views wrap their content in `<NavBar>` (`components/NavBar.vue`
+  — wordmark + Calendar/Contacts/Tasks links + Log out) inside `.app`/`.app-main`. A shared
+  `components/ConfirmDialog.vue` provides the confirm-delete modal. These are reused by all
+  modules.
+- **Module views**: `DashboardView` (home); `ContactsView` (contacts CRUD — list with
+  client-side search + paging, read-only detail, create/edit form with inline `422` errors,
+  confirm-delete, loading/empty states).
 - `lib/` is the testable, framework-free core: `api.js` (bearer-token JSON client; token in
   localStorage with an in-memory fallback; clears token on `401`), `auth.js`
-  (login/logout/currentUser), `passwords.js` (requestReset/resetPassword).
+  (login/logout/currentUser), `passwords.js` (requestReset/resetPassword), `contacts.js`
+  (list/get/create/update/remove). **Convention**: each module gets a thin `lib/<resource>.js`
+  over `apiFetch`, unit-tested with `node --test`; views handle `401` by redirecting to
+  `/login` and `422` by mapping `err.data.errors` onto fields.
 
 **Build & serving.** Vite (`@vitejs/plugin-vue`) builds `resources/spa/main.js` to
 `public/spa/app.js` with a **stable (unhashed) filename**, so the committed shell
@@ -122,8 +135,10 @@ entry `main.css` `@import`s, in cascade order: `tokens.css` → `base.css` → `
 - **Type**: headings Lemon Milk (`@font-face`, falls back to `sans-serif` — the brand font
   file is not vendored, so a **text wordmark** stands in for the logo); body Open Sans (Bunny
   CDN `@import`).
-- Components: `.btn`/`.btn--primary`, `.form`/`.field`/`.error`, `.wordmark`; visible
-  focus affordance; single-column at `max-width: 768px`.
+- Components: `.btn`/`.btn--primary`/`.btn--ghost`/`.btn--sm`, `.form`/`.field`/`.error`,
+  `.wordmark`, plus the app-shell patterns `.nav`, `.list`/`.list__row`, `.toolbar`,
+  `.modal`, `.field__error`, `.app-main`; visible focus affordance; single-column at
+  `max-width: 768px`.
 
 ## Endpoints (so far)
 

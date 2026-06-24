@@ -12,3 +12,6 @@ Maintained by the agile plugin. One row per sprint — updated by `/agile:shape`
 | Landing Page and Login | landing-page-and-login | done | Blade landing + session login screen and a JSON token-issuing login/logout endpoint. |
 | Password Reset API and Static Landing | password-reset-api-and-static-landing | done | API password-reset flow plus a static Devilsberg-dark landing page; no SSR, split CSS. |
 | Vue SPA Dashboard and Client-Side Auth | vue-spa-dashboard-and-auth | done | Static Vue SPA dashboard with token login and reset view; removes Blade SSR auth. |
+| SPA Contacts Module & App Shell | spa-contacts-module | done | Contacts CRUD in the SPA plus the shared authenticated nav shell and CRUD UI patterns. |
+| SPA To-Do Module | spa-todo-module | planned | Tasks module with quick-add, complete action, and the shared local-timezone datetime util. |
+| SPA Calendar Module | spa-calendar-module | planned | Minimalist month-view calendar with event create/edit/delete over the Events API. |

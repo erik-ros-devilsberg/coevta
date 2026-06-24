@@ -21,4 +21,5 @@ $spa = fn () => response(
 
 Route::get('/login', $spa)->name('login');
 Route::get('/dashboard', $spa)->name('dashboard');
+Route::get('/contacts', $spa)->name('contacts');
 Route::get('/reset-password', $spa)->name('password.reset');

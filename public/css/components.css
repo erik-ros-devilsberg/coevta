@@ -91,3 +91,142 @@
 .notice {
 	color: var(--gray-mid);
 }
+
+.btn--ghost {
+	background-color: transparent;
+	color: var(--gray-mid);
+	border: 1px solid var(--blue-slate);
+	padding: 0.6rem 1.25rem;
+}
+
+.btn--ghost:hover {
+	color: var(--ghost-white);
+	background-color: rgba(88, 111, 124, 0.2);
+}
+
+.btn--sm {
+	padding: 0.5rem 1rem;
+	font-size: 0.75rem;
+}
+
+/* App navigation — shown on authenticated views only. */
+.nav {
+	display: flex;
+	align-items: center;
+	gap: 1.5rem;
+	padding: 1rem var(--container-pad);
+	border-bottom: 1px solid var(--grey-dark);
+}
+
+.nav__brand {
+	font-size: 1.2rem;
+	text-decoration: none;
+}
+
+.nav__links {
+	display: flex;
+	gap: 1.5rem;
+	margin-left: auto;
+}
+
+.nav__links a {
+	font-family: var(--font-title);
+	font-size: 0.8rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--gray-mid);
+	text-decoration: none;
+}
+
+.nav__links a:hover,
+.nav__links a.router-link-active {
+	color: var(--ghost-white);
+}
+
+/* Lists — contacts, tasks. Quiet rows with a subtle hover. */
+.list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	border-top: 1px solid var(--grey-dark);
+}
+
+.list__row {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	width: 100%;
+	text-align: left;
+	background: none;
+	border: none;
+	border-bottom: 1px solid var(--grey-dark);
+	padding: 0.9rem 0.5rem;
+	color: var(--ghost-white);
+	cursor: pointer;
+	transition: background-color var(--transition);
+}
+
+.list__row:hover {
+	background-color: rgba(88, 111, 124, 0.12);
+}
+
+.list__primary {
+	font-weight: 600;
+}
+
+.list__secondary {
+	color: var(--gray-mid);
+	font-size: 0.85rem;
+}
+
+/* Per-field validation error (422). */
+.field__error {
+	color: var(--hot-fuchsia);
+	font-size: 0.8rem;
+}
+
+/* Toolbar row (search + actions) above a list. */
+.toolbar {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	margin: 1.5rem 0 0.5rem;
+}
+
+.toolbar input {
+	flex: 1;
+	font-family: var(--font-body);
+	color: var(--ghost-white);
+	background-color: rgba(88, 111, 124, 0.2);
+	border: 1px solid var(--blue-slate);
+	border-radius: 4px;
+	padding: 0.6rem 0.75rem;
+}
+
+/* Confirm dialog — overlay + dialog (Devilsberg modal). */
+.modal {
+	position: fixed;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background-color: rgba(10, 10, 16, 0.9);
+	padding: 1.5rem;
+	z-index: 10;
+}
+
+.modal__dialog {
+	background-color: var(--onyx);
+	border: 1px solid var(--blue-slate);
+	border-radius: 8px;
+	padding: 2rem;
+	max-width: 400px;
+	width: 100%;
+}
+
+.modal__actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.75rem;
+	margin-top: 1.5rem;
+}
