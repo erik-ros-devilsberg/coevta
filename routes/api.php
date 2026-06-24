@@ -4,6 +4,7 @@ use App\Http\Controllers\ApiLoginController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\HealthController;
+use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\TaskController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -18,6 +19,16 @@ Route::prefix('v1')->group(function () {
 	Route::post('/login', [ApiLoginController::class, 'login'])
 		->middleware('throttle:6,1')
 		->name('api.login');
+
+	// Public password recovery. Both endpoints are rate-limited. forgot-password
+	// always responds the same way (no account enumeration); reset-password
+	// applies a new password given a valid token and revokes existing tokens.
+	Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLink'])
+		->middleware('throttle:6,1')
+		->name('api.password.email');
+	Route::post('/reset-password', [PasswordResetController::class, 'reset'])
+		->middleware('throttle:6,1')
+		->name('api.password.reset');
 
 	// Authenticated routes require a valid Sanctum bearer token.
 	Route::middleware('auth:sanctum')->group(function () {

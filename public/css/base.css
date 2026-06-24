@@ -1,0 +1,54 @@
+/* ==========================================================================
+   Base — reset, dark canvas, typography defaults.
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	scroll-behavior: smooth;
+}
+
+body {
+	margin: 0;
+	min-height: 100vh;
+	background-color: var(--onyx);
+	color: var(--ghost-white);
+	font-family: var(--font-body);
+	font-size: 1rem;
+	line-height: 1.6;
+	-webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+	font-family: var(--font-title);
+	font-weight: 500;
+	line-height: 1.2;
+	margin: 0 0 1rem;
+}
+
+p {
+	margin: 0 0 1.5rem;
+}
+
+a {
+	color: var(--hot-fuchsia);
+	text-decoration: none;
+	transition: color var(--transition);
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+/* Visible focus affordance for keyboard navigation. */
+a:focus-visible,
+button:focus-visible {
+	outline: 2px solid var(--hot-fuchsia);
+	outline-offset: 2px;
+}

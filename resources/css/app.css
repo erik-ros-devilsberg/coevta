@@ -1,9 +1,8 @@
-@import 'tailwindcss';
-
-@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
-@source '../../storage/framework/views/*.php';
-
-@theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
-}
+/*
+ * Vite CSS entry. Tailwind has been removed in favour of hand-written, central
+ * styling under public/css/ (see public/css/main.css and its imports), which the
+ * static landing page loads directly.
+ *
+ * This entry is reserved for the Vue SPA build (next sprint); it currently holds
+ * no styles of its own.
+ */

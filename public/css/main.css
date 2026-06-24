@@ -1,0 +1,12 @@
+/* ==========================================================================
+   coevta — central stylesheet entry
+   Function-split CSS, imported in cascade order. Mirrors the sibling-project
+   convention (archivus public/css, devilsberg-com src/css): one entry that
+   @imports the parts. Brand: Devilsberg (dark / Onyx).
+   ========================================================================== */
+
+@import './tokens.css';
+@import './base.css';
+@import './layout.css';
+@import './components.css';
+@import './utilities.css';

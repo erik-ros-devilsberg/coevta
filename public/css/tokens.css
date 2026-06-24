@@ -1,0 +1,48 @@
+/* ==========================================================================
+   Design tokens — all CSS custom properties live here.
+   Devilsberg brand palette + typography. No hardcoded hex outside this file.
+   ========================================================================== */
+
+/* Body font — Open Sans (Bunny, privacy-friendly CDN). Heading font (Lemon
+   Milk) is a brand asset that lives outside this repo; declared via @font-face
+   below with a sans-serif fallback so the page stays legible without it. */
+@import url('https://fonts.bunny.net/css?family=open-sans:400,600,700&display=swap');
+
+@font-face {
+	font-family: 'Lemon Milk';
+	src: url('/fonts/LEMONMILK-Medium.otf') format('opentype');
+	font-weight: 500;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Lemon Milk';
+	src: url('/fonts/LEMONMILK-Bold.otf') format('opentype');
+	font-weight: 700;
+	font-display: swap;
+}
+
+:root {
+	/* ---------- Primary palette ---------- */
+	--onyx: #0a0a10;
+	--ghost-white: #f7f7ff;
+	--blue-slate: #586f7c;
+	--hot-fuchsia: #ff3366;
+	--sea-green: #058c42;
+
+	/* ---------- Supporting ---------- */
+	--grey-dark: #38464e;
+	--gray-mid: #becad1;
+	--gray-light: #e9edf0;
+
+	/* ---------- Typography ---------- */
+	--font-title: 'Lemon Milk', sans-serif;
+	--font-body: 'Open Sans', sans-serif;
+
+	/* ---------- Layout ---------- */
+	--container-max: 1200px;
+	--container-pad: 2rem;
+
+	/* ---------- Motion ---------- */
+	--transition: 0.2s ease;
+}

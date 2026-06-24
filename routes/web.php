@@ -1,20 +1,24 @@
 <?php
 
-use App\Http\Controllers\LoginController;
-use App\Http\Controllers\PageController;
 use Illuminate\Support\Facades\Route;
 
-// Public landing page.
-Route::get('/', [PageController::class, 'landing'])->name('home');
+// Public landing page — a static asset, not a server-rendered view. We return
+// the file's contents as HTML (no Blade, no templating). In production the web
+// server can serve public/landing.html directly; this route is the fallback so
+// `/` works under `artisan serve`, which routes everything through PHP.
+Route::get('/', fn () => response(
+	(string) file_get_contents(public_path('landing.html')),
+)->header('Content-Type', 'text/html'))->name('home');
 
-// Login form + attempt (session/browser auth). The login attempt is
-// rate-limited; the GET route is named `login` so the framework `auth`
-// middleware redirects guests here.
-Route::get('/login', [LoginController::class, 'showLogin'])->name('login');
-Route::post('/login', [LoginController::class, 'login'])->middleware('throttle:6,1');
+// The authenticated app is a static Vue SPA — there is no server-side rendering
+// and no session auth. These routes serve the same static shell; the SPA's
+// client-side router renders the right view and authenticates against the API
+// with a Sanctum token. Deep links (login, dashboard, reset-password) therefore
+// resolve to the shell instead of 404ing.
+$spa = fn () => response(
+	(string) file_get_contents(public_path('app.html')),
+)->header('Content-Type', 'text/html');
 
-// Authenticated browser routes.
-Route::middleware('auth')->group(function () {
-	Route::get('/dashboard', [PageController::class, 'dashboard'])->name('dashboard');
-	Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
-});
+Route::get('/login', $spa)->name('login');
+Route::get('/dashboard', $spa)->name('dashboard');
+Route::get('/reset-password', $spa)->name('password.reset');

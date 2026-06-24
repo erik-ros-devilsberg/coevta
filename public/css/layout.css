@@ -1,0 +1,50 @@
+/* ==========================================================================
+   Layout — container, hero spacing, responsive collapse.
+   ========================================================================== */
+
+.container {
+	max-width: var(--container-max);
+	margin: 0 auto;
+	padding: 0 var(--container-pad);
+}
+
+.hero {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	min-height: 100vh;
+	padding: 6rem 0;
+}
+
+/* SPA views (login, dashboard, reset) — a centred column. */
+.app-view {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	min-height: 100vh;
+	padding: 4rem 0;
+	gap: 0.5rem;
+}
+
+.hero__title {
+	font-size: clamp(2.5rem, 8vw, 3.5rem);
+	text-transform: uppercase;
+	letter-spacing: 0.1em;
+	font-weight: 700;
+}
+
+.hero__tagline {
+	color: var(--gray-mid);
+	font-size: 1.15rem;
+	max-width: 40rem;
+}
+
+@media (max-width: 768px) {
+	:root {
+		--container-pad: 1.25rem;
+	}
+
+	.hero {
+		padding: 4rem 0;
+	}
+}

@@ -56,6 +56,19 @@ return [
 
 	/*
 	|--------------------------------------------------------------------------
+	| Frontend URL
+	|--------------------------------------------------------------------------
+	|
+	| Base URL of the client-side frontend (the static landing + Vue SPA). Used
+	| to build links that point at the SPA rather than the API — notably the
+	| password-reset link embedded in reset emails. Falls back to APP_URL.
+	|
+	*/
+
+	'frontend_url' => env('FRONTEND_URL', env('APP_URL', 'http://localhost')),
+
+	/*
+	|--------------------------------------------------------------------------
 	| Application Timezone
 	|--------------------------------------------------------------------------
 	|

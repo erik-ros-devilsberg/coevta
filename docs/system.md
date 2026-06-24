@@ -44,41 +44,93 @@ These were decided in the Project Foundation sprint and apply to every later fea
 - **PHPStan / Larastan** at **max** level, zero errors; `composer stan` (`phpstan.neon` analyses `app`, `database`, `routes`).
 - **PHP-CS-Fixer** — `@PSR12` with **tab** indentation (`->setIndent("\t")`); `composer fix` / `composer fix:check`.
 - **composer audit** — clean.
-- **Coverage** — `composer coverage` runs PHPUnit with clover output and `bin/coverage-check.php` enforces a **90%** line-coverage minimum. **Requires a coverage driver (pcov or xdebug)**, which is not installed in the current environment — the gate is configured but cannot execute here until a driver is added.
+- **Coverage** — `composer coverage` runs PHPUnit with clover output and `bin/coverage-check.php` enforces a **90%** line-coverage minimum (requires a pcov/xdebug driver). Currently at **100%**.
+- **Frontend** — `npm run build` (Vite) builds the SPA; `npm test` runs the JS unit tests via Node's built-in test runner (`node --test`) over `resources/spa/lib/*.test.js` (no extra test framework). These cover the auth/reset client logic (token stored/cleared, reset payload shape, failure paths). The JS suite is **not** part of `composer gates` — run `npm test` alongside it.
 
 ## Authentication & login
 
-Two front doors over the same `users` credentials (`UserFactory` default password is
-`password`):
+Auth is **API-token only** (Sanctum). There is **no web/session login** — the browser
+login form is part of the Vue SPA and authenticates against the API like any other client.
+(`UserFactory` default password is `password`.)
 
-- **Web (browser)** — the `web` session guard (`Auth::attempt()` + session + CSRF). Used
-  by the Blade pages. A successful login regenerates the session; logout invalidates it.
-- **API (clients)** — a token-issuing endpoint that returns a Sanctum personal access
-  token (`$user->createToken()`), the same model the `coevta:create-token` command mints.
+- **Login** (`POST /api/v1/login`) returns a Sanctum personal access token
+  (`$user->createToken()`), the same model the `coevta:create-token` command mints. The SPA
+  stores it client-side (localStorage) and sends it as a bearer token; `POST /api/v1/logout`
+  revokes the current token.
+- **Password recovery** (`POST /api/v1/forgot-password`, `POST /api/v1/reset-password`) is
+  built on Laravel's `Password` broker against the stock `password_reset_tokens` table
+  (`App\Http\Controllers\PasswordResetController`). Key behaviours:
+  - **No account enumeration** — `forgot-password` always returns the same success-shaped
+    response whether or not the email exists; no notification is sent for unknown emails.
+  - Tokens are single-use and expire after 60 min (`config/auth.php` `passwords.users`).
+    Invalid/expired/wrong-email tokens → `422`, password unchanged.
+  - New password policy: `min:8`, `confirmed`.
+  - **On a successful reset all of the user's Sanctum tokens are revoked**
+    (`$user->tokens()->delete()`), so a leaked password cannot keep live sessions alive.
+  - The reset link in the email points at the **frontend** (SPA), not the API:
+    `ResetPassword::createUrlUsing` (in `AppServiceProvider`) builds
+    `{config('app.frontend_url')}/reset-password?token=…&email=…`; `app.frontend_url`
+    defaults to `APP_URL` (env `FRONTEND_URL`). The SPA reset view reads those query params
+    and posts them to `reset-password`.
 
 Auth is deliberately **exempt from the "minimize computer says no" principle**: wrong
 credentials must fail (never defaulted). Error messages are generic and do not reveal
-whether an email is registered. Both login routes are rate-limited (`throttle:6,1`).
-There is no registration yet — users come from `coevta:create-token` (or a future
-user-management story).
+whether an email is registered. Login and both recovery endpoints are rate-limited
+(`throttle:6,1`). There is no registration yet — users come from `coevta:create-token`
+(or a future user-management story).
 
-## Web layer (Blade)
+## Frontend (static landing + Vue SPA)
 
-The first server-rendered (HTML) surface; minimal/unstyled (`resources/views`, shared
-`layouts.app`). Session/CSRF stack is the framework default via `routes/web.php`.
+**There is no server-side rendering.** The backend is API-only; the frontend is static.
+Blade has been removed (no `resources/views`). `routes/web.php` only streams static HTML
+files (`response(file_get_contents(...))`, never `view()`).
 
-- `GET /` (`home`) — public landing page (`PageController@landing`).
-- `GET /login` (`login`) — login form (`LoginController@showLogin`); redirects authenticated
-  users to `/dashboard`.
-- `POST /login` — `LoginController@login`; `Auth::attempt()`, on failure redirects back with
-  a generic error. `throttle:6,1`.
-- `POST /logout` (`logout`) — `LoginController@logout`; ends the session (`auth`).
-- `GET /dashboard` (`dashboard`) — authenticated placeholder (`auth`); guests → `/login`.
+- **Landing** — `GET /` (`home`) serves the static `public/landing.html`. Public marketing
+  page; CTA links to `/login`.
+- **App (Vue SPA)** — `GET /login` (`login`), `/dashboard` (`dashboard`), `/reset-password`
+  (`password.reset`) all serve the same static shell `public/app.html`. The SPA's
+  client-side router (history mode) renders the right view, so deep links resolve instead of
+  404ing. Auth is enforced **client-side** (the dashboard guard bounces tokenless users to
+  `/login`); the server never 302s guests.
+
+**SPA source** lives in `resources/spa/` (Vue 3 + vue-router):
+- `main.js` → `App.vue` → `router.js` (routes: login, dashboard, reset-password).
+- Views: `LoginView`, `DashboardView`, `ResetPasswordView` (the reset view shows the
+  "choose a new password" form when the URL carries a token, else a "request a link" form).
+- `lib/` is the testable, framework-free core: `api.js` (bearer-token JSON client; token in
+  localStorage with an in-memory fallback; clears token on `401`), `auth.js`
+  (login/logout/currentUser), `passwords.js` (requestReset/resetPassword).
+
+**Build & serving.** Vite (`@vitejs/plugin-vue`) builds `resources/spa/main.js` to
+`public/spa/app.js` with a **stable (unhashed) filename**, so the committed shell
+`public/app.html` references `/spa/app.js` directly — no manifest, no `@vite`, no Blade.
+`public/spa/` is a build artifact (gitignored); `npm run build` (run by `composer setup`)
+produces it.
+
+## Styling (Devilsberg brand, dark theme)
+
+Hand-written CSS (no Tailwind), centrally located and **split by function** under
+`public/css/`, mirroring the sibling-project convention (archivus, devilsberg-com). A single
+entry `main.css` `@import`s, in cascade order: `tokens.css` → `base.css` → `layout.css` →
+`components.css` → `utilities.css`. Both the static landing and the SPA shell link
+`/css/main.css` — one source for both.
+
+- **Brand**: Devilsberg dark — Onyx (`#0a0a10`) canvas, Ghost White (`#f7f7ff`) text, Blue
+  Slate borders/labels, Hot Fuchsia accents/errors, Sea Green for primary-button hover. All
+  tokens (colours + `--font-title`/`--font-body`) live in `tokens.css`; no hardcoded hex
+  elsewhere.
+- **Type**: headings Lemon Milk (`@font-face`, falls back to `sans-serif` — the brand font
+  file is not vendored, so a **text wordmark** stands in for the logo); body Open Sans (Bunny
+  CDN `@import`).
+- Components: `.btn`/`.btn--primary`, `.form`/`.field`/`.error`, `.wordmark`; visible
+  focus affordance; single-column at `max-width: 768px`.
 
 ## Endpoints (so far)
 
 - `GET /api/v1/ping` — public liveness check, returns `{ status: "ok", version: <from version.json via config('coevta.version')>, time: <ISO8601 UTC> }`.
 - `POST /api/v1/login` — public; `{ email, password }` → `200 { token }`; bad creds `401` (generic message, no token); missing fields `422`. `throttle:6,1`.
+- `POST /api/v1/forgot-password` — public; `{ email }` → `200` (same response for known/unknown emails, no enumeration). `throttle:6,1`. See Authentication & login.
+- `POST /api/v1/reset-password` — public; `{ email, token, password, password_confirmation }` → `200`; invalid/expired token or `min:8`/`confirmed` failure → `422`. Revokes the user's existing tokens on success. `throttle:6,1`.
 - `GET /api/v1/user` — returns the authenticated user (requires `auth:sanctum`).
 - `POST /api/v1/logout` — `auth:sanctum`; revokes the current access token, returns `204`.
 
