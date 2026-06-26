@@ -53,6 +53,27 @@ export function fromLocalInput(value, { dateOnly = false } = {}) {
 	return d.toISOString();
 }
 
+/**
+ * The local calendar day (`YYYY-MM-DD`) an API value falls on — date-only values
+ * pass through; datetimes (string or Date) are resolved in the user's local time.
+ * Used to drop events onto calendar cells.
+ */
+export function localDateKey(value) {
+	if (!value) {
+		return '';
+	}
+	if (isDateOnly(value)) {
+		return value;
+	}
+
+	const d = value instanceof Date ? value : new Date(value);
+	if (Number.isNaN(d.getTime())) {
+		return '';
+	}
+
+	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 /** Human-readable display: date-only as-is, datetimes in local time. */
 export function formatDueForDisplay(value) {
 	if (!value) {

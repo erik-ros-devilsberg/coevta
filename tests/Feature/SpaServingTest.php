@@ -46,6 +46,11 @@ class SpaServingTest extends TestCase
 		$this->assertServesShell('/tasks');
 	}
 
+	public function test_calendar_route_serves_the_static_shell(): void
+	{
+		$this->assertServesShell('/calendar');
+	}
+
 	public function test_dashboard_is_not_redirected_server_side(): void
 	{
 		// Auth is enforced client-side; the server must not 302 guests away.

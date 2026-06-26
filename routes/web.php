@@ -23,4 +23,5 @@ Route::get('/login', $spa)->name('login');
 Route::get('/dashboard', $spa)->name('dashboard');
 Route::get('/contacts', $spa)->name('contacts');
 Route::get('/tasks', $spa)->name('tasks');
+Route::get('/calendar', $spa)->name('calendar');
 Route::get('/reset-password', $spa)->name('password.reset');

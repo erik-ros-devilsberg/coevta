@@ -88,7 +88,7 @@ files (`response(file_get_contents(...))`, never `view()`).
 - **Landing** — `GET /` (`home`) serves the static `public/landing.html`. Public marketing
   page; CTA links to `/login`.
 - **App (Vue SPA)** — `GET /login` (`login`), `/dashboard` (`dashboard`), `/contacts`
-  (`contacts`), `/tasks` (`tasks`), `/reset-password` (`password.reset`) all serve the same static shell
+  (`contacts`), `/tasks` (`tasks`), `/calendar` (`calendar`), `/reset-password` (`password.reset`) all serve the same static shell
   `public/app.html`. The SPA's client-side router (history mode) renders the right view, so
   deep links resolve instead of 404ing. Auth is enforced **client-side** (`requiresAuth`
   routes bounce tokenless users to `/login`); the server never 302s guests. **Every new SPA
@@ -110,14 +110,20 @@ files (`response(file_get_contents(...))`, never `view()`).
   split, complete/reopen toggle, edit-in-modal, confirm-delete). The complete toggle calls
   the no-body `complete` action; reopening and editing a completed task **resend
   `completed_at`** because the API's PUT is a full replacement (omitting it reopens the task).
+  `CalendarView` (a single Monday-first month grid — prev/next/today, event chips with timed
+  vs all-day styling, click a day to create / a chip to edit, confirm-delete). Because the
+  Events API has no date filter, the calendar fetches **all** events (`listAllEvents` pages
+  through) and groups them onto days client-side.
 - `lib/` is the testable, framework-free core: `api.js` (bearer-token JSON client; token in
   localStorage with an in-memory fallback; clears token on `401`), `auth.js`
   (login/logout/currentUser), `passwords.js` (requestReset/resetPassword), `contacts.js`
   (list/get/create/update/remove), `tasks.js` (CRUD + `completeTask` + `buildTaskBody`),
-  `datetime.js` (shared date/datetime helpers — keeps date-only vs datetime granularity,
-  shows datetimes in local time, sends/stores ISO 8601 UTC). **Convention**: each module gets
-  a thin `lib/<resource>.js` over `apiFetch`, unit-tested with `node --test`; views handle
-  `401` by redirecting to `/login` and `422` by mapping `err.data.errors` onto fields.
+  `events.js` (CRUD + `listAllEvents`), `month.js` (pure UTC-based month-grid helpers —
+  `monthMatrix`/`groupByDay`/`shiftMonth`), `datetime.js` (shared date/datetime helpers —
+  keeps date-only vs datetime granularity, `localDateKey` for day mapping, shows datetimes in
+  local time, sends/stores ISO 8601 UTC). **Convention**: each module gets a thin
+  `lib/<resource>.js` over `apiFetch`, unit-tested with `node --test`; views handle `401` by
+  redirecting to `/login` and `422` by mapping `err.data.errors` onto fields.
 
 **Build & serving.** Vite (`@vitejs/plugin-vue`) builds `resources/spa/main.js` to
 `public/spa/app.js` with a **stable (unhashed) filename**, so the committed shell

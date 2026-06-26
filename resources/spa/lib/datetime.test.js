@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { isDateOnly, toLocalInput, fromLocalInput, formatDueForDisplay } from './datetime.js';
+import { isDateOnly, toLocalInput, fromLocalInput, formatDueForDisplay, localDateKey } from './datetime.js';
 
 describe('isDateOnly', () => {
 	it('recognises date-only values and rejects datetimes/null', () => {
@@ -48,5 +48,16 @@ describe('formatDueForDisplay', () => {
 	it('shows date-only as-is and empty for null', () => {
 		assert.equal(formatDueForDisplay('2026-06-25'), '2026-06-25');
 		assert.equal(formatDueForDisplay(null), '');
+	});
+});
+
+describe('localDateKey', () => {
+	it('returns the date part for date-only and empty for null', () => {
+		assert.equal(localDateKey('2026-06-25'), '2026-06-25');
+		assert.equal(localDateKey(null), '');
+	});
+
+	it('derives the local day key from a Date (midday avoids tz date-flips)', () => {
+		assert.equal(localDateKey(new Date(2026, 5, 25, 12, 0)), '2026-06-25');
 	});
 });
