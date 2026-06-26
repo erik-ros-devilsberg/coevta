@@ -1,5 +1,4 @@
-import { afterEach, beforeEach, describe, it, mock } from 'node:test';
-import assert from 'node:assert/strict';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 import { resetPassword } from './passwords.js';
 import { clearToken } from './api.js';
@@ -13,12 +12,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-	mock.restoreAll();
+	vi.restoreAllMocks();
 });
 
 describe('resetPassword', () => {
 	it('posts the token, email and new password to the reset endpoint', async () => {
-		const fetchMock = mock.fn(async () => fakeResponse({ body: { message: 'ok' } }));
+		const fetchMock = vi.fn(async () => fakeResponse({ body: { message: 'ok' } }));
 		globalThis.fetch = fetchMock;
 
 		await resetPassword({
@@ -28,12 +27,11 @@ describe('resetPassword', () => {
 			passwordConfirmation: 'brand-new-password',
 		});
 
-		const [url, options] = fetchMock.mock.calls[0].arguments;
-		assert.equal(url, '/api/v1/reset-password');
-		assert.equal(options.method, 'POST');
+		const [url, options] = fetchMock.mock.calls[0];
+		expect(url).toBe('/api/v1/reset-password');
+		expect(options.method).toBe('POST');
 
-		const sent = JSON.parse(options.body);
-		assert.deepEqual(sent, {
+		expect(JSON.parse(options.body)).toEqual({
 			email: 'user@example.test',
 			token: 'reset-token',
 			password: 'brand-new-password',
@@ -42,17 +40,17 @@ describe('resetPassword', () => {
 	});
 
 	it('throws when the token is rejected', async () => {
-		globalThis.fetch = mock.fn(async () =>
+		globalThis.fetch = vi.fn(async () =>
 			fakeResponse({ ok: false, status: 422, body: { message: 'invalid' } }),
 		);
 
-		await assert.rejects(() =>
+		await expect(
 			resetPassword({
 				email: 'user@example.test',
 				token: 'bad',
 				password: 'brand-new-password',
 				passwordConfirmation: 'brand-new-password',
 			}),
-		);
+		).rejects.toThrow();
 	});
 });

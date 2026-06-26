@@ -1,63 +1,60 @@
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect } from 'vitest';
 
 import { isDateOnly, toLocalInput, fromLocalInput, formatDueForDisplay, localDateKey } from './datetime.js';
 
 describe('isDateOnly', () => {
 	it('recognises date-only values and rejects datetimes/null', () => {
-		assert.equal(isDateOnly('2026-06-25'), true);
-		assert.equal(isDateOnly('2026-06-25T12:00:00.000000Z'), false);
-		assert.equal(isDateOnly(null), false);
-		assert.equal(isDateOnly(''), false);
+		expect(isDateOnly('2026-06-25')).toBe(true);
+		expect(isDateOnly('2026-06-25T12:00:00.000000Z')).toBe(false);
+		expect(isDateOnly(null)).toBe(false);
+		expect(isDateOnly('')).toBe(false);
 	});
 });
 
 describe('toLocalInput', () => {
 	it('passes date-only values through unchanged', () => {
-		assert.equal(toLocalInput('2026-06-25'), '2026-06-25');
+		expect(toLocalInput('2026-06-25')).toBe('2026-06-25');
 	});
 
 	it('returns empty string for null', () => {
-		assert.equal(toLocalInput(null), '');
+		expect(toLocalInput(null)).toBe('');
 	});
 });
 
 describe('fromLocalInput', () => {
 	it('keeps date-only granularity', () => {
-		assert.equal(fromLocalInput('2026-06-25', { dateOnly: true }), '2026-06-25');
-		assert.equal(fromLocalInput('2026-06-25'), '2026-06-25');
+		expect(fromLocalInput('2026-06-25', { dateOnly: true })).toBe('2026-06-25');
+		expect(fromLocalInput('2026-06-25')).toBe('2026-06-25');
 	});
 
 	it('converts a local datetime input to ISO 8601 UTC', () => {
-		const iso = fromLocalInput('2026-06-25T14:30');
-		assert.match(iso, /Z$/);
+		expect(fromLocalInput('2026-06-25T14:30')).toMatch(/Z$/);
 	});
 
 	it('returns null for empty input', () => {
-		assert.equal(fromLocalInput(''), null);
+		expect(fromLocalInput('')).toBe(null);
 	});
 
 	it('round-trips local datetime through UTC regardless of timezone', () => {
-		// local -> UTC -> local must return the original local input.
 		const local = '2026-06-25T14:30';
-		assert.equal(toLocalInput(fromLocalInput(local)), local);
+		expect(toLocalInput(fromLocalInput(local))).toBe(local);
 	});
 });
 
 describe('formatDueForDisplay', () => {
 	it('shows date-only as-is and empty for null', () => {
-		assert.equal(formatDueForDisplay('2026-06-25'), '2026-06-25');
-		assert.equal(formatDueForDisplay(null), '');
+		expect(formatDueForDisplay('2026-06-25')).toBe('2026-06-25');
+		expect(formatDueForDisplay(null)).toBe('');
 	});
 });
 
 describe('localDateKey', () => {
 	it('returns the date part for date-only and empty for null', () => {
-		assert.equal(localDateKey('2026-06-25'), '2026-06-25');
-		assert.equal(localDateKey(null), '');
+		expect(localDateKey('2026-06-25')).toBe('2026-06-25');
+		expect(localDateKey(null)).toBe('');
 	});
 
 	it('derives the local day key from a Date (midday avoids tz date-flips)', () => {
-		assert.equal(localDateKey(new Date(2026, 5, 25, 12, 0)), '2026-06-25');
+		expect(localDateKey(new Date(2026, 5, 25, 12, 0))).toBe('2026-06-25');
 	});
 });

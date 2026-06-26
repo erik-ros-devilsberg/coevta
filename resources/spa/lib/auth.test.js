@@ -1,5 +1,4 @@
-import { afterEach, beforeEach, describe, it, mock } from 'node:test';
-import assert from 'node:assert/strict';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 import { login, logout, isAuthenticated } from './auth.js';
 import { clearToken, getToken } from './api.js';
@@ -13,41 +12,39 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-	mock.restoreAll();
+	vi.restoreAllMocks();
 });
 
 describe('login', () => {
 	it('stores the token returned by the API on success', async () => {
-		globalThis.fetch = mock.fn(async () => fakeResponse({ body: { token: 'abc123' } }));
+		globalThis.fetch = vi.fn(async () => fakeResponse({ body: { token: 'abc123' } }));
 
 		await login('user@example.test', 'secret-pass');
 
-		assert.equal(getToken(), 'abc123');
-		assert.equal(isAuthenticated(), true);
+		expect(getToken()).toBe('abc123');
+		expect(isAuthenticated()).toBe(true);
 	});
 
 	it('throws and stores no token on invalid credentials', async () => {
-		globalThis.fetch = mock.fn(async () =>
+		globalThis.fetch = vi.fn(async () =>
 			fakeResponse({ ok: false, status: 401, body: { message: 'nope' } }),
 		);
 
-		await assert.rejects(() => login('user@example.test', 'wrong'));
-		assert.equal(getToken(), null);
-		assert.equal(isAuthenticated(), false);
+		await expect(login('user@example.test', 'wrong')).rejects.toThrow();
+		expect(getToken()).toBe(null);
+		expect(isAuthenticated()).toBe(false);
 	});
 });
 
 describe('logout', () => {
 	it('clears the stored token', async () => {
-		globalThis.fetch = mock.fn(async () => fakeResponse({ status: 204 }));
-		// Seed a token as if previously logged in.
-		globalThis.fetch = mock.fn(async () => fakeResponse({ body: { token: 'tok' } }));
+		globalThis.fetch = vi.fn(async () => fakeResponse({ body: { token: 'tok' } }));
 		await login('user@example.test', 'secret-pass');
-		assert.equal(isAuthenticated(), true);
+		expect(isAuthenticated()).toBe(true);
 
-		globalThis.fetch = mock.fn(async () => fakeResponse({ status: 204 }));
+		globalThis.fetch = vi.fn(async () => fakeResponse({ status: 204 }));
 		await logout();
 
-		assert.equal(getToken(), null);
+		expect(getToken()).toBe(null);
 	});
 });

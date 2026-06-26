@@ -45,7 +45,7 @@ These were decided in the Project Foundation sprint and apply to every later fea
 - **PHP-CS-Fixer** — `@PSR12` with **tab** indentation (`->setIndent("\t")`); `composer fix` / `composer fix:check`.
 - **composer audit** — clean.
 - **Coverage** — `composer coverage` runs PHPUnit with clover output and `bin/coverage-check.php` enforces a **90%** line-coverage minimum (requires a pcov/xdebug driver). Currently at **100%**.
-- **Frontend** — `npm run build` (Vite) builds the SPA; `npm test` runs the JS unit tests via Node's built-in test runner (`node --test`) over `resources/spa/lib/*.test.js` (no extra test framework). These cover the auth/reset client logic (token stored/cleared, reset payload shape, failure paths). The JS suite is **not** part of `composer gates` — run `npm test` alongside it.
+- **Frontend** — `npm run build` (Vite) builds the SPA; `npm test` runs **Vitest** (`vitest run`, jsdom env — config in `vitest.config.js`) over `resources/spa/**/*.test.js`. Two layers: **lib unit tests** (`lib/*.test.js` — API client behaviour, payload shapes, datetime/month helpers, `401`/`422` paths) and **component tests** (`views/*.test.js` — `@vue/test-utils` mounting a view, mocking the `lib`/`vue-router` modules, asserting calls + rendered state, e.g. `LoginView` auth flow, `TasksView` quick-add/complete). The JS suite is **not** part of `composer gates` — run `npm test` alongside it.
 
 ## Authentication & login
 
@@ -122,7 +122,7 @@ files (`response(file_get_contents(...))`, never `view()`).
   `monthMatrix`/`groupByDay`/`shiftMonth`), `datetime.js` (shared date/datetime helpers —
   keeps date-only vs datetime granularity, `localDateKey` for day mapping, shows datetimes in
   local time, sends/stores ISO 8601 UTC). **Convention**: each module gets a thin
-  `lib/<resource>.js` over `apiFetch`, unit-tested with `node --test`; views handle `401` by
+  `lib/<resource>.js` over `apiFetch`, unit-tested with Vitest; views handle `401` by
   redirecting to `/login` and `422` by mapping `err.data.errors` onto fields.
 
 **Build & serving.** Vite (`@vitejs/plugin-vue`) builds `resources/spa/main.js` to
