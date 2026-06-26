@@ -185,6 +185,27 @@
 	font-size: 0.8rem;
 }
 
+/* Task rows — checkbox, body, trailing actions. */
+.task-row {
+	cursor: default;
+}
+
+.task-row__body {
+	display: flex;
+	flex-direction: column;
+}
+
+.task-row__actions {
+	margin-left: auto;
+	display: flex;
+	gap: 0.5rem;
+}
+
+.task-row--done .list__primary {
+	color: var(--gray-mid);
+	text-decoration: line-through;
+}
+
 /* Toolbar row (search + actions) above a list. */
 .toolbar {
 	display: flex;

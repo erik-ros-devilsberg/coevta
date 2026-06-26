@@ -4,6 +4,7 @@ import LoginView from './views/LoginView.vue';
 import DashboardView from './views/DashboardView.vue';
 import ResetPasswordView from './views/ResetPasswordView.vue';
 import ContactsView from './views/ContactsView.vue';
+import TasksView from './views/TasksView.vue';
 import { isAuthenticated } from './lib/auth.js';
 
 // History mode — the server serves the SPA shell for these paths (see
@@ -12,6 +13,7 @@ const routes = [
 	{ path: '/login', component: LoginView },
 	{ path: '/dashboard', component: DashboardView, meta: { requiresAuth: true } },
 	{ path: '/contacts', component: ContactsView, meta: { requiresAuth: true } },
+	{ path: '/tasks', component: TasksView, meta: { requiresAuth: true } },
 	{ path: '/reset-password', component: ResetPasswordView },
 	{ path: '/:pathMatch(.*)*', redirect: '/dashboard' },
 ];
