@@ -1,0 +1,24 @@
+{
+	"name": "Contacts",
+	"short_name": "Contacts",
+	"description": "Your contacts, available offline.",
+	"start_url": "/contacts/",
+	"scope": "/contacts/",
+	"display": "standalone",
+	"background_color": "#0a0a10",
+	"theme_color": "#0a0a10",
+	"icons": [
+		{
+			"src": "/contacts/icon.svg",
+			"sizes": "any",
+			"type": "image/svg+xml",
+			"purpose": "any"
+		},
+		{
+			"src": "/contacts/icon-maskable.svg",
+			"sizes": "any",
+			"type": "image/svg+xml",
+			"purpose": "maskable"
+		}
+	]
+}

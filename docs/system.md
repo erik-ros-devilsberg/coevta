@@ -131,6 +131,78 @@ files (`response(file_get_contents(...))`, never `view()`).
 `public/spa/` is a build artifact (gitignored); `npm run build` (run by `composer setup`)
 produces it.
 
+## Contacts PWA (offline-first, `/contacts/`)
+
+The launch pivot: contacts ships as a **standalone installable PWA**, separate from the
+legacy SPA. Calendar and Tasks are intended to follow as their own PWAs (`/calendar/`,
+`/tasks/`), at which point the legacy SPA can be deleted. The backend is unchanged — the
+PWA is just another API client.
+
+**Why separate apps rather than one SPA.** A service worker's scope is bounded by its
+path, and a navigation outside that scope drops an installed app back into a browser tab.
+So each app is self-contained under its own prefix — including **its own login view**
+(`/contacts/login`), rather than sharing the SPA's `/login`. Apps share an origin, so the
+Sanctum token in localStorage is shared: log in once, all apps are authenticated.
+
+- **Source**: `resources/pwa/contacts/`. **Shared, app-agnostic code**: `resources/shared/`
+  (`lib/api.js`, `lib/auth.js`, `lib/contacts.js`, `lib/kv.js`, `components/ConfirmDialog.vue`)
+  — imported by both the PWA and the legacy SPA. There is exactly one `api.js`/`auth.js`.
+- **Build**: one Vite config per app (`vite.contacts.config.js`, root `resources/pwa/contacts`,
+  `emptyOutDir: false` because committed static files share the output directory). `npm run build`
+  builds every app. Output `public/contacts/app.js`, stable/unhashed and gitignored.
+- **Static, committed**: `public/contacts/index.html` (shell), `manifest.webmanifest`,
+  `icon.svg`, `icon-maskable.svg`, `sw.js`. Icons are **placeholders** — branding is a
+  separate sprint. They are SVG, which satisfies Chromium installability but **not iOS**,
+  which wants PNG.
+- **Serving**: `/contacts` + `/contacts/{any}` serve the shell (`routes/web.php`). The
+  `[^.]*` route constraint keeps the catch-all off anything with a file extension, so the
+  real files above are served by the web server rather than swallowed by PHP — asserted by
+  `ContactsPwaServingTest`.
+- **Service worker**: hand-written (the bundle has stable names, so the precache list is
+  literal). Cache-first shell, `activate` deletes older `coevta-contacts-*` caches.
+  **`/api/*` is never cached** — API data belongs to the offline layer, not the HTTP cache.
+  **Maintenance**: adding a shell asset means adding it to `SHELL` *and* bumping `CACHE`;
+  `addAll` is atomic, so a stale entry fails the whole install. `main.css` only `@import`s
+  its parts, so every part is precached individually (pinned by `ContactsPwaManifestTest`).
+
+### Offline data layer
+
+Reads and writes both go to the device first; the network is a background concern.
+
+- **Storage** (`shared/lib/kv.js`): a deliberately narrow async key-value interface
+  (`get/set/del/all/keys/clear`) with an **IndexedDB** adapter and an **in-memory** one.
+  That split is what lets the sync logic be unit-tested without a browser IndexedDB (no
+  `fake-indexeddb` dependency). `createKv` falls back to memory where IndexedDB is absent
+  rather than throwing. The IDB adapter holds no logic and is not unit-tested.
+- **Store** (`pwa/contacts/lib/store.js`): the whole contact set lives on the device
+  (`listAllContacts` pages through), so the list, search, sort and the A–Z scrubber are all
+  client-side — **there is no pagination UI**. `refresh()` reconciles with the server but
+  **skips contacts with pending changes** in both directions: otherwise it would overwrite
+  an offline edit with the server's stale copy, or delete an offline-created contact the
+  server has never heard of.
+- **Outbox** (`lib/outbox.js`): a durable, ordered queue (monotonic `seq`, sequence derived
+  from storage so restarts continue rather than replay). Coalescing at enqueue:
+  create+delete cancels both; update+update keeps the last; update folds into a pending
+  create (an update against an unsynced id would 404); delete drops a pending update.
+- **Sync** (`lib/sync.js`): `flush()` is **serialized** (start-up and the `online` event
+  routinely fire together). Per-operation failure policy: **401** stops and keeps the queue
+  for after re-auth; **404** drops the op and reconciles locally; **422** drops the op and
+  reports it (a poison op must never wedge the queue); anything else is transient — stop
+  and retry next flush, preserving order.
+- **Temporary ids**: contacts created offline get a `local-` id and appear immediately.
+  When the create syncs, the server's record replaces it and `remapContactId` repoints any
+  queued ops at the real id. Operations are flagged `sending` before the request leaves, and
+  coalescing skips those — **folding an edit into an already-sent create would silently
+  drop it**. The form returns to the list after create, since the temp id is about to change.
+
+**Conflict resolution is last-write-wins, and this loses data by design.** Two devices
+editing the same contact offline means the later sync silently overwrites the earlier. The
+Contacts API exposes no version, ETag or `updated_at`, so a client cannot detect that a
+record changed underneath it, and the backend is fixed. Related: a create whose response is
+lost (network drop after the server committed) will be resent and **duplicate the contact** —
+the API has no idempotency key. Both are accepted, documented trade-offs of keeping the
+backend unchanged, not oversights.
+
 ## Styling (Devilsberg brand, dark theme)
 
 Hand-written CSS (no Tailwind), centrally located and **split by function** under

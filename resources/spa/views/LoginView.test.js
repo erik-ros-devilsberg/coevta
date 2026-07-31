@@ -3,7 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils';
 
 // Hoisted mocks (vi.mock is hoisted above imports).
 const { loginMock, pushMock } = vi.hoisted(() => ({ loginMock: vi.fn(), pushMock: vi.fn() }));
-vi.mock('../lib/auth.js', () => ({ login: loginMock }));
+vi.mock('../../shared/lib/auth.js', () => ({ login: loginMock }));
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: pushMock, replace: vi.fn() }) }));
 
 import LoginView from './LoginView.vue';

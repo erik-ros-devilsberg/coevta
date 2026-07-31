@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
-import { login } from '../lib/auth.js';
+import { login } from '../../shared/lib/auth.js';
 
 const router = useRouter();
 const email = ref('');

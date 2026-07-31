@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Contacts">
+	<!-- Placeholder mark. Branding, iconography and visual design are out of
+	     scope for this sprint and land in a dedicated branding sprint; this is a
+	     neutral glyph so the app is installable in the meantime. -->
+	<rect width="512" height="512" rx="96" fill="#0a0a10" />
+	<circle cx="256" cy="200" r="68" fill="#f7f7ff" />
+	<path d="M256 296c-71 0-129 47-129 105v15h258v-15c0-58-58-105-129-105Z" fill="#f7f7ff" />
+</svg>

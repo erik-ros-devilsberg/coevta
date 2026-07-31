@@ -2,7 +2,7 @@
 // pages through the whole collection — the API has no date filter, so the
 // calendar fetches every event and groups them onto days client-side.
 
-import { apiFetch } from './api.js';
+import { apiFetch } from '../../shared/lib/api.js';
 
 export function listEvents(page = 1) {
 	return apiFetch(`/events?page=${page}`);

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 import { resetPassword } from './passwords.js';
-import { clearToken } from './api.js';
+import { clearToken } from '../../shared/lib/api.js';
 
 function fakeResponse({ ok = true, status = 200, body = null } = {}) {
 	return { ok, status, json: async () => body };

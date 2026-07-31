@@ -3,7 +3,9 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vite build",
+        "build": "vite build && vite build --config vite.contacts.config.js",
+        "build:spa": "vite build",
+        "build:contacts": "vite build --config vite.contacts.config.js",
         "dev": "vite",
         "test": "vitest run"
     },

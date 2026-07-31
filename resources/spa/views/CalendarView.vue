@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import NavBar from '../components/NavBar.vue';
-import ConfirmDialog from '../components/ConfirmDialog.vue';
+import ConfirmDialog from '../../shared/components/ConfirmDialog.vue';
 import {
 	listAllEvents,
 	createEvent,

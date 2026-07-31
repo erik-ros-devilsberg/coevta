@@ -36,9 +36,11 @@ class SpaServingTest extends TestCase
 		$this->assertServesShell('/reset-password');
 	}
 
-	public function test_contacts_route_serves_the_static_shell(): void
+	public function test_contacts_is_no_longer_served_by_this_spa(): void
 	{
-		$this->assertServesShell('/contacts');
+		// Contacts has moved to its own PWA under /contacts/ (separate service
+		// worker scope). It must not serve this SPA's bundle.
+		$this->get('/contacts')->assertOk()->assertDontSee('/spa/app.js', escape: false);
 	}
 
 	public function test_tasks_route_serves_the_static_shell(): void

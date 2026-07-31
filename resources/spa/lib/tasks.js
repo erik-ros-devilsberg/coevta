@@ -2,7 +2,7 @@
 // action and a payload builder that makes the PUT full-replacement behaviour
 // explicit (resend completed_at to keep a task complete; omit to reopen it).
 
-import { apiFetch } from './api.js';
+import { apiFetch } from '../../shared/lib/api.js';
 
 export function listTasks(page = 1) {
 	return apiFetch(`/tasks?page=${page}`);

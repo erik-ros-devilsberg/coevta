@@ -185,6 +185,124 @@
 	font-size: 0.8rem;
 }
 
+/* --------------------------------------------------------------------------
+   Contacts PWA — connection state, letter groups and the A–Z scrubber.
+   Styling here is deliberately minimal: visual design is a separate sprint.
+   -------------------------------------------------------------------------- */
+
+.contacts__head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 1rem;
+	flex-wrap: wrap;
+}
+
+/* Connection state. The app works offline, so it has to say which mode it is
+   in — otherwise a disabled Save button just looks broken. */
+.conn {
+	font-family: var(--font-title);
+	font-size: 0.75rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+
+.conn--online {
+	color: var(--sea-green);
+}
+
+.conn--offline {
+	color: var(--hot-fuchsia);
+}
+
+.conn__pending {
+	color: var(--gray-mid);
+}
+
+/* Marks a contact whose changes have not reached the server yet. */
+.badge-pending {
+	margin-left: 0.5rem;
+	padding: 0.1rem 0.35rem;
+	border-radius: 4px;
+	background-color: rgba(255, 51, 102, 0.15);
+	color: var(--hot-fuchsia);
+	font-family: var(--font-title);
+	font-size: 0.65rem;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	vertical-align: middle;
+}
+
+/* The scrubber is fixed to the bottom of the viewport, so the list needs room
+   to scroll clear of it. */
+.contacts__list {
+	padding-bottom: 4.5rem;
+}
+
+.list__header {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	padding: 0.35rem var(--container-pad);
+	background-color: var(--onyx);
+	border-bottom: 1px solid var(--blue-slate);
+	color: var(--blue-slate);
+	font-family: var(--font-title);
+	font-size: 0.75rem;
+	letter-spacing: 0.1em;
+	scroll-margin-top: 0;
+}
+
+/* A–Z scrubber: A on the left, Z on the right, '#' last. Pinned to the bottom
+   of the viewport and draggable across its whole width. */
+.scrubber {
+	position: fixed;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	z-index: 2;
+	display: flex;
+	justify-content: space-between;
+	gap: 1px;
+	padding: 0.4rem 0.5rem calc(0.4rem + env(safe-area-inset-bottom, 0px));
+	background-color: var(--onyx);
+	border-top: 1px solid var(--blue-slate);
+	/* The whole strip is one drag surface — let the pointer own the gesture so a
+	   horizontal swipe scrubs instead of scrolling the page. */
+	touch-action: none;
+}
+
+.scrubber__letter {
+	flex: 1 1 0;
+	min-width: 0;
+	padding: 0.3rem 0;
+	border: 0;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--gray-mid);
+	font-family: var(--font-title);
+	font-size: 0.7rem;
+	line-height: 1;
+	cursor: pointer;
+	transition: color var(--transition), background-color var(--transition);
+	/* Letters are tiny targets; the drag gesture is the primary interaction, so
+	   the pointer must not select the label text mid-drag. */
+	user-select: none;
+}
+
+.scrubber__letter:hover {
+	color: var(--ghost-white);
+}
+
+.scrubber__letter.is-empty {
+	color: var(--grey-dark);
+}
+
+.scrubber__letter.is-active {
+	background-color: var(--blue-slate);
+	color: var(--ghost-white);
+}
+
 /* Task rows — checkbox, body, trailing actions. */
 .task-row {
 	cursor: default;

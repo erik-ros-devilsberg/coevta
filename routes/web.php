@@ -21,7 +21,24 @@ $spa = fn () => response(
 
 Route::get('/login', $spa)->name('login');
 Route::get('/dashboard', $spa)->name('dashboard');
-Route::get('/contacts', $spa)->name('contacts');
 Route::get('/tasks', $spa)->name('tasks');
 Route::get('/calendar', $spa)->name('calendar');
 Route::get('/reset-password', $spa)->name('password.reset');
+
+// The Contacts PWA is a separate installable app with its own service worker
+// scope (/contacts/), so it has its own static shell rather than sharing the
+// SPA's. Its client-side router owns everything below /contacts/, hence the
+// catch-all.
+//
+// The `[^.]*` constraint keeps this route off anything with a file extension.
+// Real files live in the same directory — sw.js, manifest.webmanifest, app.js,
+// the icons — and are served by the web server; a catch-all that swallowed them
+// would break installation and offline support in ways that are painful to
+// diagnose. The app's own routes (ids, `new`, `login`, `<id>/edit`) never
+// contain a dot.
+$contactsPwa = fn () => response(
+	(string) file_get_contents(public_path('contacts/index.html')),
+)->header('Content-Type', 'text/html');
+
+Route::get('/contacts', $contactsPwa)->name('contacts');
+Route::get('/contacts/{any}', $contactsPwa)->where('any', '[^.]*')->name('contacts.any');

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Contacts">
+	<!-- Maskable variant: the glyph sits inside the 80% safe zone so platforms
+	     that crop to a circle or squircle cannot clip it. Placeholder — see the
+	     branding sprint. -->
+	<rect width="512" height="512" fill="#0a0a10" />
+	<circle cx="256" cy="214" r="54" fill="#f7f7ff" />
+	<path d="M256 290c-56 0-102 37-102 83v11h204v-11c0-46-46-83-102-83Z" fill="#f7f7ff" />
+</svg>

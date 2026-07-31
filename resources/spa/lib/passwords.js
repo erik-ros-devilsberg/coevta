@@ -2,7 +2,7 @@
 // the previous sprint: request a reset link, then apply a new password using the
 // token + email carried in the reset URL.
 
-import { apiFetch } from './api.js';
+import { apiFetch } from '../../shared/lib/api.js';
 
 export async function requestReset(email) {
 	return apiFetch('/forgot-password', {

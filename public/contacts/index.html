@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Contacts</title>
+		<meta name="description" content="Your contacts, available offline." />
+		<link rel="manifest" href="/contacts/manifest.webmanifest" />
+		<meta name="theme-color" content="#0a0a10" />
+		<link rel="icon" href="/contacts/icon.svg" type="image/svg+xml" />
+		<link rel="apple-touch-icon" href="/contacts/icon.svg" />
+		<!-- Central styling, shared with the landing page and the legacy SPA. -->
+		<link rel="stylesheet" href="/css/main.css" />
+	</head>
+	<body>
+		<div id="app"></div>
+		<!-- Built PWA bundle (stable name; produced by `npm run build`). This is a
+		     static shell — no server-side rendering. -->
+		<script type="module" src="/contacts/app.js"></script>
+	</body>
+</html>

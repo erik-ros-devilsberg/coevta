@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
-import { listContacts, getContact, createContact, updateContact, removeContact } from './contacts.js';
+import { listContacts, listAllContacts, getContact, createContact, updateContact, removeContact } from './contacts.js';
 import { clearToken, getToken, setToken } from './api.js';
 
 function fakeResponse({ ok = true, status = 200, body = null } = {}) {
@@ -34,6 +34,64 @@ describe('listContacts', () => {
 		await listContacts();
 
 		expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/contacts?page=1');
+	});
+});
+
+describe('listAllContacts', () => {
+	// The PWA keeps the whole contact set on the device (for offline reads and
+	// for the A–Z scrubber), so it pages the collection out in full.
+	function pagedFetch(pages) {
+		return vi.fn(async (url) => {
+			const page = Number(new URL(url, 'http://x').searchParams.get('page'));
+			return fakeResponse({
+				body: { data: pages[page - 1], meta: { current_page: page, last_page: pages.length } },
+			});
+		});
+	}
+
+	it('concatenates every page in order', async () => {
+		globalThis.fetch = pagedFetch([
+			[{ id: '1' }, { id: '2' }],
+			[{ id: '3' }],
+		]);
+
+		expect(await listAllContacts()).toEqual([{ id: '1' }, { id: '2' }, { id: '3' }]);
+	});
+
+	it('requests each page exactly once', async () => {
+		const fetchMock = pagedFetch([[{ id: '1' }], [{ id: '2' }], [{ id: '3' }]]);
+		globalThis.fetch = fetchMock;
+
+		await listAllContacts();
+
+		expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+			'/api/v1/contacts?page=1',
+			'/api/v1/contacts?page=2',
+			'/api/v1/contacts?page=3',
+		]);
+	});
+
+	it('stops after one request when there is a single page', async () => {
+		const fetchMock = pagedFetch([[{ id: '1' }]]);
+		globalThis.fetch = fetchMock;
+
+		await listAllContacts();
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('returns an empty list when there are no contacts', async () => {
+		globalThis.fetch = vi.fn(async () =>
+			fakeResponse({ body: { data: [], meta: { current_page: 1, last_page: 1 } } }),
+		);
+
+		expect(await listAllContacts()).toEqual([]);
+	});
+
+	it('treats a response with no meta as a single page rather than looping forever', async () => {
+		globalThis.fetch = vi.fn(async () => fakeResponse({ body: { data: [{ id: '1' }] } }));
+
+		expect(await listAllContacts()).toEqual([{ id: '1' }]);
 	});
 });
 

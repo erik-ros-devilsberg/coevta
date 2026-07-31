@@ -3,7 +3,7 @@ import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import NavBar from '../components/NavBar.vue';
-import { currentUser, isAuthenticated } from '../lib/auth.js';
+import { currentUser, isAuthenticated } from '../../shared/lib/auth.js';
 
 const router = useRouter();
 const user = ref(null);

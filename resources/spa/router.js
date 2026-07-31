@@ -3,17 +3,17 @@ import { createRouter, createWebHistory } from 'vue-router';
 import LoginView from './views/LoginView.vue';
 import DashboardView from './views/DashboardView.vue';
 import ResetPasswordView from './views/ResetPasswordView.vue';
-import ContactsView from './views/ContactsView.vue';
 import TasksView from './views/TasksView.vue';
 import CalendarView from './views/CalendarView.vue';
-import { isAuthenticated } from './lib/auth.js';
+import { isAuthenticated } from '../shared/lib/auth.js';
 
 // History mode — the server serves the SPA shell for these paths (see
 // routes/web.php), so deep links resolve without a hash.
 const routes = [
 	{ path: '/login', component: LoginView },
 	{ path: '/dashboard', component: DashboardView, meta: { requiresAuth: true } },
-	{ path: '/contacts', component: ContactsView, meta: { requiresAuth: true } },
+	// Contacts is no longer part of this SPA — it is a standalone PWA under
+	// /contacts/ with its own service worker scope. The NavBar links out to it.
 	{ path: '/tasks', component: TasksView, meta: { requiresAuth: true } },
 	{ path: '/calendar', component: CalendarView, meta: { requiresAuth: true } },
 	{ path: '/reset-password', component: ResetPasswordView },
