@@ -3,10 +3,11 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vite build && vite build --config vite.contacts.config.js && vite build --config vite.tasks.config.js",
+        "build": "vite build && vite build --config vite.contacts.config.js && vite build --config vite.tasks.config.js && vite build --config vite.calendar.config.js",
         "build:spa": "vite build",
         "build:contacts": "vite build --config vite.contacts.config.js",
         "build:tasks": "vite build --config vite.tasks.config.js",
+        "build:calendar": "vite build --config vite.calendar.config.js",
         "dev": "vite",
         "test": "vitest run"
     },

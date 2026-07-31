@@ -95,14 +95,14 @@ files (`response(file_get_contents(...))`, never `view()`).
 
 - **Landing** — `GET /` (`home`) serves the static `public/landing.html`. Public marketing
   page; CTA links to `/login`.
-- **App (Vue SPA)** — `GET /login` (`login`), `/dashboard` (`dashboard`), `/calendar`
-  (`calendar`), `/reset-password` (`password.reset`) all serve the same static shell
-  `public/app.html`. **`/contacts` and `/tasks` are no longer among them** — each is its own
-  PWA (see below), and the NavBar links to them are plain `<a href>` full page loads out of
-  the SPA. **Calendar is the only module still living in the SPA**; when it moves, the SPA can
-  be deleted — but `/login` and `/reset-password` must be rehomed first, because password
-  reset emails link to `/reset-password` (see Authentication & login). The SPA's client-side router (history mode) renders the right view, so
-  deep links resolve instead of 404ing. Auth is enforced **client-side** (`requiresAuth`
+- **App (Vue SPA)** — `GET /login` (`login`), `/dashboard` (`dashboard`) and `/reset-password`
+  (`password.reset`) serve the same static shell `public/app.html`. **`/contacts`, `/tasks` and
+  `/calendar` are no longer among them** — each is its own PWA (see below), and the NavBar
+  links to them are plain `<a href>` full page loads out of the SPA. No resource module lives
+  here any more, but the SPA is **kept, not deleted**: it is being repurposed for a different
+  use, and password reset depends on it (see Authentication & login), so treat the shell and
+  its auth views as live. The SPA's client-side router (history mode) renders the right view,
+  so deep links resolve instead of 404ing. Auth is enforced **client-side** (`requiresAuth`
   routes bounce tokenless users to `/login`); the server never 302s guests. **Every new SPA
   route needs both a router entry and a `routes/web.php` shell route** (covered by
   `SpaServingTest`).
@@ -117,22 +117,18 @@ files (`response(file_get_contents(...))`, never `view()`).
   `resources/shared/components/ConfirmDialog.vue` provides the confirm-delete modal — it lives
   in `shared/` because the PWA needs it too, and two copies would drift apart. These are reused
   by all modules.
-- **Module views**: `DashboardView` (home);
-  `CalendarView` (a single Monday-first month grid — prev/next/today, event chips with timed
-  vs all-day styling, click a day to create / a chip to edit, confirm-delete). Because the
-  Events API has no date filter, the calendar fetches **all** events (`listAllEvents` pages
-  through) and groups them onto days client-side.
+- **Module views**: `DashboardView` (home) is the only one left — every resource module now
+  lives in its own PWA.
 - `lib/` is the testable, framework-free core. The app-agnostic parts now live in
   `resources/shared/lib/` — `api.js` (bearer-token JSON client; token in localStorage with an
   in-memory fallback; clears token on `401`), `auth.js` (login/logout/currentUser) and
-  `contacts.js` (list/get/create/update/remove + `listAllContacts`) — imported by both the SPA
-  and the PWAs, along with `tasks.js` (CRUD + `completeTask` + `listAllTasks` +
-  `buildTaskBody`) and `datetime.js` (date/datetime helpers — keeps date-only vs datetime
-  granularity, `localDateKey` for day mapping, shows datetimes in local time, sends/stores
-  ISO 8601 UTC); there is exactly one of each in the repo. SPA-only modules stay in
-  `resources/spa/lib/`: `passwords.js` (requestReset/resetPassword),
-  `events.js` (CRUD + `listAllEvents`), `month.js` (pure UTC-based month-grid helpers —
-  `monthMatrix`/`groupByDay`/`shiftMonth`). **Convention**: each module gets a thin
+  the three resource clients `contacts.js` (+ `listAllContacts`), `tasks.js` (+ `completeTask`,
+  `listAllTasks`, `buildTaskBody`) and `events.js` (+ `listAllEvents`), plus `datetime.js`
+  (date/datetime helpers — keeps date-only vs datetime granularity, `localDateKey` for day
+  mapping, shows datetimes in local time, sends/stores ISO 8601 UTC). There is exactly one of
+  each in the repo. What stays SPA-only is `resources/spa/lib/passwords.js`
+  (requestReset/resetPassword); `month.js` moved to `resources/pwa/calendar/lib/` because only
+  the calendar will ever use it. **Convention**: each module gets a thin
   `lib/<resource>.js` over `apiFetch`, unit-tested with Vitest; views handle `401` by
   redirecting to `/login` and `422` by mapping `err.data.errors` onto fields.
 
@@ -145,9 +141,11 @@ produces it.
 ## The PWAs (offline-first apps)
 
 Each resource ships as a **standalone installable PWA**, separate from the legacy SPA.
-**Contacts** (`/contacts/`) and **Tasks** (`/tasks/`) exist; **Calendar** (`/calendar/`) is
-still in the legacy SPA and follows, at which point the SPA can be deleted. The backend is
-unchanged — the PWAs are just API clients.
+**Contacts** (`/contacts/`), **Tasks** (`/tasks/`) and **Calendar** (`/calendar/`) are each
+their own installable app. The legacy SPA is **retained** — it is being repurposed rather than
+retired — and keeps `/dashboard`, `/login` and `/reset-password`; password reset depends on it,
+so treat its shell and auth views as live. The backend is unchanged — the PWAs are just API
+clients.
 
 **Why separate apps rather than one SPA.** A service worker's scope is bounded by its
 path, and a navigation outside that scope drops an installed app back into a browser tab.
@@ -155,15 +153,15 @@ So each app is self-contained under its own prefix — including **its own login
 (`/contacts/login`), rather than sharing the SPA's `/login`. Apps share an origin, so the
 Sanctum token in localStorage is shared: log in once, all apps are authenticated.
 
-- **Source**: `resources/pwa/<app>/` (`contacts`, `tasks`). **Shared, app-agnostic code**:
-  `resources/shared/` (`lib/api.js`, `lib/auth.js`, `lib/kv.js`, `lib/outbox.js`,
+- **Source**: `resources/pwa/<app>/` (`contacts`, `tasks`, `calendar`). **Shared, app-agnostic
+  code**: `resources/shared/` (`lib/api.js`, `lib/auth.js`, `lib/kv.js`, `lib/outbox.js`,
   `lib/sync.js`, `lib/store.js`, `lib/datetime.js`, the resource clients `lib/contacts.js` /
-  `lib/tasks.js`, and `components/ConfirmDialog.vue`) — imported by the PWAs and the legacy
-  SPA. There is exactly one of each in the repo.
-- **Build**: one Vite config per app (`vite.contacts.config.js`, `vite.tasks.config.js`; root
-  `resources/pwa/<app>`, `emptyOutDir: false` because committed static files share the output
-  directory). `npm run build` builds every app. Output `public/<app>/app.js`, stable/unhashed
-  and gitignored.
+  `lib/tasks.js` / `lib/events.js`, and `components/ConfirmDialog.vue`) — imported by the PWAs
+  and the legacy SPA. There is exactly one of each in the repo.
+- **Build**: one Vite config per app (`vite.contacts.config.js`, `vite.tasks.config.js`,
+  `vite.calendar.config.js`; root `resources/pwa/<app>`, `emptyOutDir: false` because committed
+  static files share the output directory). `npm run build` builds every app. Output
+  `public/<app>/app.js`, stable/unhashed and gitignored.
 - **Static, committed**: `public/<app>/index.html` (shell), `manifest.webmanifest`,
   `icon.svg`, `icon-maskable.svg`, `sw.js`. Icons are **placeholders** — branding is a
   separate sprint. They are SVG, which satisfies Chromium installability but **not iOS**,
@@ -174,7 +172,8 @@ Sanctum token in localStorage is shared: log in once, all apps are authenticated
   swallowed by PHP — asserted by `ContactsPwaServingTest` / `TasksPwaServingTest`.
 - **Service worker**: hand-written per app (the bundles have stable names, so each precache
   list is literal). Cache-first shell; `activate` deletes only that app's older caches
-  (`coevta-contacts-*`, `coevta-tasks-*`) — a broader prefix would wipe a sibling app's shell.
+  (`coevta-contacts-*`, `coevta-tasks-*`, `coevta-calendar-*`) — a broader prefix would wipe a
+  sibling app's shell.
   **`/api/*` is never cached** — API data belongs to the offline layer, not the HTTP cache.
   **Maintenance**: adding a shell asset means adding it to `SHELL` *and* bumping `CACHE`;
   `addAll` is atomic, so a stale entry fails the whole install. `main.css` only `@import`s
@@ -196,8 +195,8 @@ names and its ordering. There is **one outbox and one sync engine in the repo** 
   That split is what lets the sync logic be unit-tested without a browser IndexedDB (no
   `fake-indexeddb` dependency). `createKv` falls back to memory where IndexedDB is absent
   rather than throwing. The IDB adapter holds no logic and is not unit-tested. **Each app
-  gets its own database** (`coevta-contacts`, `coevta-tasks`), so caches and queues cannot
-  collide.
+  gets its own database** (`coevta-contacts`, `coevta-tasks`, `coevta-calendar`), so caches and
+  queues cannot collide.
 - **Store** (`shared/lib/store.js`, `createOfflineStore({ kv, outboxKv, remote, sort })`):
   the whole record set lives on the device (`listAllContacts` / `listAllTasks` page through),
   so listing, searching, sorting and the A–Z scrubber are all client-side — **there is no
@@ -230,6 +229,13 @@ lost (network drop after the server committed) will be resent and **duplicate th
 the API has no idempotency key. Both are accepted, documented trade-offs of keeping the
 backend unchanged, not oversights.
 
+**The calendar's local set grows without bound, by decision.** The Events API has no date
+filter, so the app fetches every event and keeps every one. That makes any month instantly
+reachable offline and matches how contacts and tasks work, at the cost of a first sync that
+gets slower the more history a user accumulates. The alternative considered — fetch everything
+but keep only a rolling window — was rejected because navigating outside the window offline
+shows an empty month, which reads as data loss. Revisit if it bites.
+
 ### Per-app specifics
 
 **Contacts** (`resources/pwa/contacts/`) — list, detail and form views; ordering and grouping
@@ -250,6 +256,27 @@ box. So `store.complete(task)` is an ordinary update carrying `completed_at` fro
 clock, and behaves identically online and offline. The endpoint remains in the API for other
 clients but **has no frontend consumer**. The cost is that a skewed device clock stamps a
 skewed time and last-write-wins cannot detect it.
+
+**Calendar** (`resources/pwa/calendar/`) — a single Monday-first month grid: prev/next/today,
+event chips with timed vs all-day styling, click a day to create or a chip to edit, all in a
+modal. Month navigation is pure client-side arithmetic (`lib/month.js`) over the local set, so
+any month is reachable offline, not just ones already visited. The API has no date filter, so
+the app pulls **every** event and groups them client-side — unbounded by decision (see below).
+
+**The calendar mirrors the API's normalization client-side** (`lib/defaults.js`), which no
+other app has to do. The Events API is deliberately forgiving: it fills a blank title, defaults
+`end_at` to `start_at + 1 hour` and snaps all-day events. Offline there is no server to do
+that, so an event created with no end time would have none until it synced and would then
+visibly change. `buildEventBody` applies the same rules locally. **This is duplication and the
+two copies can drift** — if the API's defaults change, `defaults.js` changes with them. It is
+the accepted cost of the grid not rearranging itself under the user.
+
+**All-day events are keyed by calendar date, not local time** (`dayKeyFor` in `lib/month.js`).
+A timed event resolves in local time, because it happens at an instant. An all-day event on 1
+August is 1 August everywhere — but the API stores it as midnight UTC, and resolving *that*
+locally drags it onto 31 July for anyone west of UTC. Keying all-day events by their date part
+also means the date-only value held for an event created offline and the midnight-UTC value the
+server returns resolve to the same cell, so nothing jumps on sync.
 
 **The sharpest failure mode in the tasks app is a task silently reopening.** The API's PUT is
 a full replacement, so any queued update that omits `completed_at` clears it server-side. That

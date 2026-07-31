@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 import { listEvents, listAllEvents, createEvent, updateEvent, removeEvent } from './events.js';
-import { clearToken } from '../../shared/lib/api.js';
+import { clearToken } from './api.js';
 
 function fakeResponse({ ok = true, status = 200, body = null } = {}) {
 	return { ok, status, json: async () => body };

@@ -42,16 +42,17 @@ Two things are genuinely different from contacts and need thought rather than co
 - Unit and component tests cover the calendar-specific logic; `composer gates` and `npm test` pass
 - No backend changes
 
-## Legacy SPA teardown (inherited from story 17)
+## The legacy SPA is kept
 
-Calendar is the **last** module in the legacy SPA, so this story is also the teardown story.
-These criteria were written for the Tasks PWA (story 17) on the assumption that calendar had
-already shipped; it had not, so they moved here — the SPA still owned `/calendar` and could
-not be deleted. They are not optional extras: once calendar moves, the SPA is dead weight
-serving three routes, one of which is load-bearing.
+Story 17 assumed that once every module had its own PWA the legacy SPA would be deleted. That
+is **not** happening: the SPA shell is being repurposed for a different use, so it stays.
 
-- The legacy SPA is removed: `resources/spa/`, `public/app.html`, its Vite config and its build script
-- Password reset still works end to end — the URL in the reset email resolves to a live view. `AppServiceProvider` builds it from `app.frontend_url` as `{frontend_url}/reset-password?token=…&email=…`, so `/reset-password` needs a home (most likely inside whichever app owns login) **before** the SPA is deleted, not after
-- `/login` has a home — each PWA already carries its own in-scope login, so the question is what a bare `GET /login` should do once the SPA is gone
-- The dashboard is either rehomed or deliberately dropped, with the decision recorded in `docs/system.md`
+This story therefore takes the calendar out of the SPA and nothing else:
+
+- `/calendar` is served by the new PWA, not the SPA — the bare path, no redirect
+- `resources/spa/`, `public/app.html` and the SPA build are **retained**
+- `/dashboard`, `/login` and `/reset-password` keep working exactly as they do now; password reset stays where it is and **no reset URL changes**
 - `GET /` still serves the static landing page, unchanged
+
+What the SPA becomes is undefined and needs its own user story. Until that exists, treat the
+shell and its auth views as live — password reset depends on them.

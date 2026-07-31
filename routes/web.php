@@ -21,7 +21,6 @@ $spa = fn () => response(
 
 Route::get('/login', $spa)->name('login');
 Route::get('/dashboard', $spa)->name('dashboard');
-Route::get('/calendar', $spa)->name('calendar');
 Route::get('/reset-password', $spa)->name('password.reset');
 
 // Each PWA is a separate installable app with its own service worker scope, so
@@ -45,3 +44,7 @@ Route::get('/contacts/{any}', $contactsPwa)->where('any', '[^.]*')->name('contac
 $tasksPwa = $pwaShell('tasks');
 Route::get('/tasks', $tasksPwa)->name('tasks');
 Route::get('/tasks/{any}', $tasksPwa)->where('any', '[^.]*')->name('tasks.any');
+
+$calendarPwa = $pwaShell('calendar');
+Route::get('/calendar', $calendarPwa)->name('calendar');
+Route::get('/calendar/{any}', $calendarPwa)->where('any', '[^.]*')->name('calendar.any');

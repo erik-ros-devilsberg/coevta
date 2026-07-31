@@ -3,7 +3,6 @@ import { createRouter, createWebHistory } from 'vue-router';
 import LoginView from './views/LoginView.vue';
 import DashboardView from './views/DashboardView.vue';
 import ResetPasswordView from './views/ResetPasswordView.vue';
-import CalendarView from './views/CalendarView.vue';
 import { isAuthenticated } from '../shared/lib/auth.js';
 
 // History mode — the server serves the SPA shell for these paths (see
@@ -11,10 +10,10 @@ import { isAuthenticated } from '../shared/lib/auth.js';
 const routes = [
 	{ path: '/login', component: LoginView },
 	{ path: '/dashboard', component: DashboardView, meta: { requiresAuth: true } },
-	// Contacts and Tasks are no longer part of this SPA — each is a standalone
-	// PWA (/contacts/, /tasks/) with its own service worker scope. The NavBar
-	// links out to them. Calendar is the last module still living here.
-	{ path: '/calendar', component: CalendarView, meta: { requiresAuth: true } },
+	// Every resource module is now a standalone PWA (/contacts/, /tasks/,
+	// /calendar/) with its own service worker scope; the NavBar links out to
+	// them. What remains here is auth and the dashboard — the shell is retained
+	// for a different use rather than retired.
 	{ path: '/reset-password', component: ResetPasswordView },
 	{ path: '/:pathMatch(.*)*', redirect: '/dashboard' },
 ];

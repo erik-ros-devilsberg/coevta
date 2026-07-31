@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { daysInMonth, monthMatrix, groupByDay, shiftMonth } from './month.js';
+import { daysInMonth, monthMatrix, groupByDay, shiftMonth, dayKeyFor } from './month.js';
 
 describe('daysInMonth', () => {
 	it('counts days, including leap February', () => {
@@ -66,6 +66,46 @@ describe('groupByDay', () => {
 		expect(grouped).toEqual({});
 	});
 });
+
+describe('dayKeyFor', () => {
+	it('places a timed event on its local day', () => {
+		// A timed event happens at an instant, so it belongs on whichever day that
+		// instant falls on for the person looking at the grid.
+		const key = dayKeyFor({ all_day: false, start_at: '2026-08-01T12:00:00.000Z' });
+
+		expect(key).toBe(localDayOf('2026-08-01T12:00:00.000Z'));
+	});
+
+	it('places an all-day event on its calendar date, regardless of timezone', () => {
+		// An all-day event on 1 August is 1 August everywhere. Resolving it in
+		// local time would drag it onto 31 July for anyone west of UTC, because
+		// the API stores it as midnight UTC.
+		expect(dayKeyFor({ all_day: true, start_at: '2026-08-01T00:00:00.000Z' })).toBe('2026-08-01');
+	});
+
+	it('treats a date-only all-day value the same as the server\'s midnight-UTC one', () => {
+		// This is what stops an event created offline jumping to another cell when
+		// the server's version replaces it: both forms resolve to one key.
+		const local = dayKeyFor({ all_day: true, start_at: '2026-08-01' });
+		const fromServer = dayKeyFor({ all_day: true, start_at: '2026-08-01T00:00:00.000Z' });
+
+		expect(local).toBe('2026-08-01');
+		expect(fromServer).toBe(local);
+	});
+
+	it('returns an empty key for an event with no start, so grouping skips it', () => {
+		expect(dayKeyFor({ all_day: false, start_at: null })).toBe('');
+	});
+});
+
+// The local day an instant falls on, computed independently of the helper under
+// test so the assertion holds in whatever timezone the suite runs in.
+function localDayOf(iso) {
+	const d = new Date(iso);
+	const pad = (n) => String(n).padStart(2, '0');
+
+	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 describe('shiftMonth', () => {
 	it('rolls over year boundaries', () => {

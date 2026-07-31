@@ -15,10 +15,9 @@ async function doLogout() {
 	<header class="nav">
 		<router-link class="nav__brand wordmark" to="/dashboard">coevta</router-link>
 		<nav class="nav__links">
-			<router-link to="/calendar">Calendar</router-link>
-			<!-- Contacts and Tasks are separate PWAs (their own service worker
-			     scopes), so these are real navigations out of this SPA, not router
-			     links. -->
+			<!-- Every module is a separate PWA (its own service worker scope), so
+			     these are real navigations out of this SPA, not router links. -->
+			<a href="/calendar/">Calendar</a>
 			<a href="/contacts/">Contacts</a>
 			<a href="/tasks/">Tasks</a>
 		</nav>

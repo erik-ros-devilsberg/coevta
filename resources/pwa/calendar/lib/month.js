@@ -1,6 +1,8 @@
 // Pure month-grid helpers for the calendar. All arithmetic is done in UTC so the
 // computed grid (calendar labels) is deterministic regardless of the runtime
-// timezone — mapping events onto days is the caller's job (via datetime.localDateKey).
+// timezone.
+
+import { isDateOnly, localDateKey } from '../../../shared/lib/datetime.js';
 
 function pad(n) {
 	return String(n).padStart(2, '0');
@@ -57,6 +59,32 @@ export function groupByDay(items, keyFn) {
 		(map[key] ??= []).push(item);
 	}
 	return map;
+}
+
+/**
+ * Which grid cell an event belongs on.
+ *
+ * Timed events resolve in local time: they happen at an instant, and that
+ * instant falls on a particular day for the person reading the grid.
+ *
+ * All-day events do not. An all-day event on 1 August is 1 August in every
+ * timezone — but the API stores it as midnight UTC, and resolving *that* in
+ * local time drags it onto 31 July for anyone west of UTC. So all-day events are
+ * keyed by their calendar date, which also means the date-only value we hold for
+ * an event created offline and the midnight-UTC value the server sends back
+ * resolve to the same cell. Without that, an event would visibly jump on sync.
+ */
+export function dayKeyFor(event) {
+	const start = event?.start_at;
+	if (!start) {
+		return '';
+	}
+
+	if (event.all_day) {
+		return isDateOnly(start) ? start : String(start).slice(0, 10);
+	}
+
+	return localDateKey(start);
 }
 
 /** Shift a (year, month0) by a number of months, rolling over year boundaries. */
