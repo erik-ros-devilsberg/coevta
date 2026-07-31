@@ -1,9 +1,9 @@
 // Drains the outbox to the server.
 //
 // Conflict resolution is LAST-WRITE-WINS, by necessity rather than by choice:
-// the Contacts API exposes no version, ETag or updated_at, so there is no way to
-// detect that a record changed under us. Two devices editing the same contact
-// offline means the later sync silently overwrites the earlier. This is
+// the API exposes no version, ETag or updated_at on any resource, so there is no
+// way to detect that a record changed under us. Two devices editing the same
+// record offline means the later sync silently overwrites the earlier. This is
 // documented in docs/system.md.
 //
 // Failure policy, per operation:
@@ -13,6 +13,9 @@
 //          retrying forever and wedging everything behind it.
 //   else → treat as transient (offline, 5xx). Stop and keep the op for the next
 //          flush; sending later ops now would apply changes out of order.
+//
+// The engine is resource-agnostic: `remote` supplies create/update/remove and
+// `kv` is wherever that resource's records live.
 
 export function createSync({ outbox, kv, remote, onUnauthorized }) {
 	let inFlight = null;
@@ -23,20 +26,20 @@ export function createSync({ outbox, kv, remote, onUnauthorized }) {
 			// Swap the temporary record for the server's, then repoint anything
 			// still queued against the temp id — otherwise the next op would be
 			// sent for an id the server has never seen.
-			await kv.del(op.contactId);
+			await kv.del(op.recordId);
 			await kv.set(created.id, created);
-			await outbox.remapContactId(op.contactId, created.id);
+			await outbox.remapRecordId(op.recordId, created.id);
 			return;
 		}
 
 		if (op.type === 'update') {
-			const updated = (await remote.update(op.contactId, op.payload)).data;
+			const updated = (await remote.update(op.recordId, op.payload)).data;
 			await kv.set(updated.id, updated);
 			return;
 		}
 
-		await remote.remove(op.contactId);
-		await kv.del(op.contactId);
+		await remote.remove(op.recordId);
+		await kv.del(op.recordId);
 	}
 
 	async function run() {
@@ -69,7 +72,7 @@ export function createSync({ outbox, kv, remote, onUnauthorized }) {
 
 				if (error?.status === 404 && op.type !== 'create') {
 					await outbox.remove(op.id);
-					await kv.del(op.contactId);
+					await kv.del(op.recordId);
 					continue;
 				}
 

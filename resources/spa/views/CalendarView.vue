@@ -11,7 +11,7 @@ import {
 	removeEvent,
 } from '../lib/events.js';
 import { monthMatrix, groupByDay, shiftMonth } from '../lib/month.js';
-import { localDateKey, toLocalInput, fromLocalInput } from '../lib/datetime.js';
+import { localDateKey, toLocalInput, fromLocalInput } from '../../shared/lib/datetime.js';
 
 const router = useRouter();
 

@@ -186,11 +186,13 @@
 }
 
 /* --------------------------------------------------------------------------
-   Contacts PWA — connection state, letter groups and the A–Z scrubber.
+   PWA shells — connection state, letter groups and the A–Z scrubber. Shared by
+   the contacts and tasks apps.
    Styling here is deliberately minimal: visual design is a separate sprint.
    -------------------------------------------------------------------------- */
 
-.contacts__head {
+.contacts__head,
+.tasks__head {
 	display: flex;
 	align-items: baseline;
 	justify-content: space-between;
@@ -219,7 +221,12 @@
 	color: var(--gray-mid);
 }
 
-/* Marks a contact whose changes have not reached the server yet. */
+/* An open task whose due date has passed. */
+.is-overdue {
+	color: var(--hot-fuchsia);
+}
+
+/* Marks a record whose changes have not reached the server yet. */
 .badge-pending {
 	margin-left: 0.5rem;
 	padding: 0.1rem 0.35rem;

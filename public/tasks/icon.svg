@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Tasks">
+	<!-- Placeholder mark. Branding, iconography and visual design are out of
+	     scope for this sprint and land in a dedicated branding sprint; this is a
+	     neutral glyph so the app is installable in the meantime. -->
+	<rect width="512" height="512" rx="96" fill="#0a0a10" />
+	<path d="M140 264l70 70 162-162" fill="none" stroke="#f7f7ff" stroke-width="56" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

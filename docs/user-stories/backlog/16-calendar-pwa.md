@@ -41,3 +41,17 @@ Two things are genuinely different from contacts and need thought rather than co
 - The legacy SPA's `/calendar` route and nav link point at the new PWA
 - Unit and component tests cover the calendar-specific logic; `composer gates` and `npm test` pass
 - No backend changes
+
+## Legacy SPA teardown (inherited from story 17)
+
+Calendar is the **last** module in the legacy SPA, so this story is also the teardown story.
+These criteria were written for the Tasks PWA (story 17) on the assumption that calendar had
+already shipped; it had not, so they moved here — the SPA still owned `/calendar` and could
+not be deleted. They are not optional extras: once calendar moves, the SPA is dead weight
+serving three routes, one of which is load-bearing.
+
+- The legacy SPA is removed: `resources/spa/`, `public/app.html`, its Vite config and its build script
+- Password reset still works end to end — the URL in the reset email resolves to a live view. `AppServiceProvider` builds it from `app.frontend_url` as `{frontend_url}/reset-password?token=…&email=…`, so `/reset-password` needs a home (most likely inside whichever app owns login) **before** the SPA is deleted, not after
+- `/login` has a home — each PWA already carries its own in-scope login, so the question is what a bare `GET /login` should do once the SPA is gone
+- The dashboard is either rehomed or deliberately dropped, with the decision recorded in `docs/system.md`
+- `GET /` still serves the static landing page, unchanged

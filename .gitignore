@@ -23,6 +23,9 @@
 /public/contacts/app.js
 /public/contacts/app-*.js
 /public/contacts/app.css
+/public/tasks/app.js
+/public/tasks/app-*.js
+/public/tasks/app.css
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage

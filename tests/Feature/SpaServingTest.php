@@ -43,9 +43,11 @@ class SpaServingTest extends TestCase
 		$this->get('/contacts')->assertOk()->assertDontSee('/spa/app.js', escape: false);
 	}
 
-	public function test_tasks_route_serves_the_static_shell(): void
+	public function test_tasks_is_no_longer_served_by_this_spa(): void
 	{
-		$this->assertServesShell('/tasks');
+		// Tasks has moved to its own PWA under /tasks/ (separate service worker
+		// scope). It must not serve this SPA's bundle.
+		$this->get('/tasks')->assertOk()->assertDontSee('/spa/app.js', escape: false);
 	}
 
 	public function test_calendar_route_serves_the_static_shell(): void

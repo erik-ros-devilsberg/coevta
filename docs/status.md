@@ -15,5 +15,6 @@ Maintained by the agile plugin. One row per sprint — updated by `/agile:shape`
 | SPA Contacts Module & App Shell | spa-contacts-module | done | Contacts CRUD in the SPA plus the shared authenticated nav shell and CRUD UI patterns. |
 | SPA To-Do Module | spa-todo-module | done | Tasks module with quick-add, complete action, and the shared local-timezone datetime util. |
 | SPA Calendar Module | spa-calendar-module | done | Minimalist month-view calendar with event create/edit/delete over the Events API. |
-| Contacts PWA Foundation and Offline Reads | contacts-pwa-foundation | in-progress | Installable contacts PWA at /contacts with offline reads, shared libs and an A–Z scrubber. |
-| Contacts Offline Writes and Sync Queue | contacts-offline-writes-and-sync | in-progress | Offline create/edit/delete via a durable outbox with temp-id remap and last-write-wins sync. |
+| Contacts PWA Foundation and Offline Reads | contacts-pwa-foundation | done | Installable contacts PWA at /contacts with offline reads, shared libs and an A–Z scrubber. |
+| Contacts Offline Writes and Sync Queue | contacts-offline-writes-and-sync | done | Offline create/edit/delete via a durable outbox with temp-id remap and last-write-wins sync. |
+| Tasks PWA and Shared Offline Layer | tasks-pwa-and-shared-offline-layer | done | Installable offline-first tasks PWA at /tasks, on a generalised shared offline layer. |

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
-import { listTasks, createTask, updateTask, completeTask, removeTask, buildTaskBody } from './tasks.js';
-import { clearToken } from '../../shared/lib/api.js';
+import { listTasks, listAllTasks, createTask, updateTask, completeTask, removeTask, buildTaskBody } from './tasks.js';
+import { clearToken } from './api.js';
 
 function fakeResponse({ ok = true, status = 200, body = null } = {}) {
 	return { ok, status, json: async () => body };
@@ -23,6 +23,32 @@ describe('listTasks', () => {
 		await listTasks(3);
 
 		expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/tasks?page=3');
+	});
+});
+
+describe('listAllTasks', () => {
+	it('pages through the whole collection', async () => {
+		// The PWA holds every task on the device — offline reads and the
+		// Open/Completed split both need the full set, not one page of it.
+		const fetchMock = vi.fn(async (url) => {
+			const page = Number(new URL(url, 'http://x').searchParams.get('page'));
+			return fakeResponse({
+				body: { data: [{ id: `t${page}` }], meta: { current_page: page, last_page: 3 } },
+			});
+		});
+		globalThis.fetch = fetchMock;
+
+		const all = await listAllTasks();
+
+		expect(all.map((t) => t.id)).toEqual(['t1', 't2', 't3']);
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+	});
+
+	it('treats a response without meta as a single page', async () => {
+		// A shape change upstream must not spin this forever.
+		globalThis.fetch = vi.fn(async () => fakeResponse({ body: { data: [{ id: 'only' }] } }));
+
+		expect(await listAllTasks()).toHaveLength(1);
 	});
 });
 
@@ -95,5 +121,28 @@ describe('buildTaskBody (PUT is a full replacement)', () => {
 		const body = buildTaskBody({ title: 'X', notes: '', due_at: '' });
 		expect(body.notes).toBe(null);
 		expect(body.due_at).toBe(null);
+	});
+
+	it('always returns every field, so a queued update cannot wipe one', () => {
+		// The outbox stores this body verbatim and the API replaces the whole
+		// record with it. A missing key here is a field deleted server-side.
+		expect(Object.keys(buildTaskBody({ title: 'X' })).sort()).toEqual([
+			'completed_at',
+			'due_at',
+			'notes',
+			'title',
+		]);
+	});
+
+	it('keeps a date-only due date date-only', () => {
+		expect(buildTaskBody({ title: 'X', due_at: '2026-08-01' }).due_at).toBe('2026-08-01');
+	});
+
+	it('keeps a datetime due date intact', () => {
+		expect(buildTaskBody({ title: 'X', due_at: '2026-08-01T09:30:00.000Z' }).due_at).toBe('2026-08-01T09:30:00.000Z');
+	});
+
+	it('trims the title', () => {
+		expect(buildTaskBody({ title: '  Pay rent  ' }).title).toBe('Pay rent');
 	});
 });

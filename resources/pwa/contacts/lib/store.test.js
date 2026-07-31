@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { memoryKv } from '../../../shared/lib/kv.js';
 import { createContactsStore } from './store.js';
-import { isTempId } from './outbox.js';
+import { isTempId } from '../../../shared/lib/outbox.js';
 
 const contact = (id, display_name) => ({ id, display_name });
 

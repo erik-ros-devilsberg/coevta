@@ -45,7 +45,15 @@ These were decided in the Project Foundation sprint and apply to every later fea
 - **PHP-CS-Fixer** — `@PSR12` with **tab** indentation (`->setIndent("\t")`); `composer fix` / `composer fix:check`.
 - **composer audit** — clean.
 - **Coverage** — `composer coverage` runs PHPUnit with clover output and `bin/coverage-check.php` enforces a **90%** line-coverage minimum (requires a pcov/xdebug driver). Currently at **100%**.
-- **Frontend** — `npm run build` (Vite) builds the SPA; `npm test` runs **Vitest** (`vitest run`, jsdom env — config in `vitest.config.js`) over `resources/spa/**/*.test.js`. Two layers: **lib unit tests** (`lib/*.test.js` — API client behaviour, payload shapes, datetime/month helpers, `401`/`422` paths) and **component tests** (`views/*.test.js` — `@vue/test-utils` mounting a view, mocking the `lib`/`vue-router` modules, asserting calls + rendered state, e.g. `LoginView` auth flow, `TasksView` quick-add/complete). The JS suite is **not** part of `composer gates` — run `npm test` alongside it.
+- **Frontend** — `npm run build` (Vite) builds **every app** (legacy SPA + each PWA, one config
+  per app); `npm test` runs **Vitest** (`vitest run`, jsdom env — config in `vitest.config.js`)
+  over `resources/**/*.test.js`, which spans all three source trees: `shared/`, `spa/` and
+  `pwa/`. Two layers: **lib unit tests** (`lib/*.test.js` — API client behaviour, payload
+  shapes, datetime/month helpers, storage contract, outbox/sync logic, `401`/`422` paths) and
+  **component tests** (`views/*.test.js` — `@vue/test-utils` mounting a view, mocking the
+  `lib`/`vue-router` modules, asserting calls + rendered state, e.g. `LoginView` auth flow,
+  `TasksView` quick-add/complete, offline create/edit/delete). The JS suite is **not** part of
+  `composer gates` — run `npm test` alongside it.
 
 ## Authentication & login
 
@@ -87,9 +95,13 @@ files (`response(file_get_contents(...))`, never `view()`).
 
 - **Landing** — `GET /` (`home`) serves the static `public/landing.html`. Public marketing
   page; CTA links to `/login`.
-- **App (Vue SPA)** — `GET /login` (`login`), `/dashboard` (`dashboard`), `/contacts`
-  (`contacts`), `/tasks` (`tasks`), `/calendar` (`calendar`), `/reset-password` (`password.reset`) all serve the same static shell
-  `public/app.html`. The SPA's client-side router (history mode) renders the right view, so
+- **App (Vue SPA)** — `GET /login` (`login`), `/dashboard` (`dashboard`), `/calendar`
+  (`calendar`), `/reset-password` (`password.reset`) all serve the same static shell
+  `public/app.html`. **`/contacts` and `/tasks` are no longer among them** — each is its own
+  PWA (see below), and the NavBar links to them are plain `<a href>` full page loads out of
+  the SPA. **Calendar is the only module still living in the SPA**; when it moves, the SPA can
+  be deleted — but `/login` and `/reset-password` must be rehomed first, because password
+  reset emails link to `/reset-password` (see Authentication & login). The SPA's client-side router (history mode) renders the right view, so
   deep links resolve instead of 404ing. Auth is enforced **client-side** (`requiresAuth`
   routes bounce tokenless users to `/login`); the server never 302s guests. **Every new SPA
   route needs both a router entry and a `routes/web.php` shell route** (covered by
@@ -101,27 +113,26 @@ files (`response(file_get_contents(...))`, never `view()`).
   password" form when the URL carries a token, else a "request a link" form) — centred,
   no nav.
 - **App shell**: authenticated views wrap their content in `<NavBar>` (`components/NavBar.vue`
-  — wordmark + Calendar/Contacts/Tasks links + Log out) inside `.app`/`.app-main`. A shared
-  `components/ConfirmDialog.vue` provides the confirm-delete modal. These are reused by all
-  modules.
-- **Module views**: `DashboardView` (home); `ContactsView` (contacts CRUD — list with
-  client-side search + paging, read-only detail, create/edit form with inline `422` errors,
-  confirm-delete, loading/empty states); `TasksView` (tasks — quick-add, Open/Completed
-  split, complete/reopen toggle, edit-in-modal, confirm-delete). The complete toggle calls
-  the no-body `complete` action; reopening and editing a completed task **resend
-  `completed_at`** because the API's PUT is a full replacement (omitting it reopens the task).
+  — wordmark + Calendar/Contacts/Tasks links + Log out) inside `.app`/`.app-main`.
+  `resources/shared/components/ConfirmDialog.vue` provides the confirm-delete modal — it lives
+  in `shared/` because the PWA needs it too, and two copies would drift apart. These are reused
+  by all modules.
+- **Module views**: `DashboardView` (home);
   `CalendarView` (a single Monday-first month grid — prev/next/today, event chips with timed
   vs all-day styling, click a day to create / a chip to edit, confirm-delete). Because the
   Events API has no date filter, the calendar fetches **all** events (`listAllEvents` pages
   through) and groups them onto days client-side.
-- `lib/` is the testable, framework-free core: `api.js` (bearer-token JSON client; token in
-  localStorage with an in-memory fallback; clears token on `401`), `auth.js`
-  (login/logout/currentUser), `passwords.js` (requestReset/resetPassword), `contacts.js`
-  (list/get/create/update/remove), `tasks.js` (CRUD + `completeTask` + `buildTaskBody`),
+- `lib/` is the testable, framework-free core. The app-agnostic parts now live in
+  `resources/shared/lib/` — `api.js` (bearer-token JSON client; token in localStorage with an
+  in-memory fallback; clears token on `401`), `auth.js` (login/logout/currentUser) and
+  `contacts.js` (list/get/create/update/remove + `listAllContacts`) — imported by both the SPA
+  and the PWAs, along with `tasks.js` (CRUD + `completeTask` + `listAllTasks` +
+  `buildTaskBody`) and `datetime.js` (date/datetime helpers — keeps date-only vs datetime
+  granularity, `localDateKey` for day mapping, shows datetimes in local time, sends/stores
+  ISO 8601 UTC); there is exactly one of each in the repo. SPA-only modules stay in
+  `resources/spa/lib/`: `passwords.js` (requestReset/resetPassword),
   `events.js` (CRUD + `listAllEvents`), `month.js` (pure UTC-based month-grid helpers —
-  `monthMatrix`/`groupByDay`/`shiftMonth`), `datetime.js` (shared date/datetime helpers —
-  keeps date-only vs datetime granularity, `localDateKey` for day mapping, shows datetimes in
-  local time, sends/stores ISO 8601 UTC). **Convention**: each module gets a thin
+  `monthMatrix`/`groupByDay`/`shiftMonth`). **Convention**: each module gets a thin
   `lib/<resource>.js` over `apiFetch`, unit-tested with Vitest; views handle `401` by
   redirecting to `/login` and `422` by mapping `err.data.errors` onto fields.
 
@@ -131,12 +142,12 @@ files (`response(file_get_contents(...))`, never `view()`).
 `public/spa/` is a build artifact (gitignored); `npm run build` (run by `composer setup`)
 produces it.
 
-## Contacts PWA (offline-first, `/contacts/`)
+## The PWAs (offline-first apps)
 
-The launch pivot: contacts ships as a **standalone installable PWA**, separate from the
-legacy SPA. Calendar and Tasks are intended to follow as their own PWAs (`/calendar/`,
-`/tasks/`), at which point the legacy SPA can be deleted. The backend is unchanged — the
-PWA is just another API client.
+Each resource ships as a **standalone installable PWA**, separate from the legacy SPA.
+**Contacts** (`/contacts/`) and **Tasks** (`/tasks/`) exist; **Calendar** (`/calendar/`) is
+still in the legacy SPA and follows, at which point the SPA can be deleted. The backend is
+unchanged — the PWAs are just API clients.
 
 **Why separate apps rather than one SPA.** A service worker's scope is bounded by its
 path, and a navigation outside that scope drops an installed app back into a browser tab.
@@ -144,64 +155,108 @@ So each app is self-contained under its own prefix — including **its own login
 (`/contacts/login`), rather than sharing the SPA's `/login`. Apps share an origin, so the
 Sanctum token in localStorage is shared: log in once, all apps are authenticated.
 
-- **Source**: `resources/pwa/contacts/`. **Shared, app-agnostic code**: `resources/shared/`
-  (`lib/api.js`, `lib/auth.js`, `lib/contacts.js`, `lib/kv.js`, `components/ConfirmDialog.vue`)
-  — imported by both the PWA and the legacy SPA. There is exactly one `api.js`/`auth.js`.
-- **Build**: one Vite config per app (`vite.contacts.config.js`, root `resources/pwa/contacts`,
-  `emptyOutDir: false` because committed static files share the output directory). `npm run build`
-  builds every app. Output `public/contacts/app.js`, stable/unhashed and gitignored.
-- **Static, committed**: `public/contacts/index.html` (shell), `manifest.webmanifest`,
+- **Source**: `resources/pwa/<app>/` (`contacts`, `tasks`). **Shared, app-agnostic code**:
+  `resources/shared/` (`lib/api.js`, `lib/auth.js`, `lib/kv.js`, `lib/outbox.js`,
+  `lib/sync.js`, `lib/store.js`, `lib/datetime.js`, the resource clients `lib/contacts.js` /
+  `lib/tasks.js`, and `components/ConfirmDialog.vue`) — imported by the PWAs and the legacy
+  SPA. There is exactly one of each in the repo.
+- **Build**: one Vite config per app (`vite.contacts.config.js`, `vite.tasks.config.js`; root
+  `resources/pwa/<app>`, `emptyOutDir: false` because committed static files share the output
+  directory). `npm run build` builds every app. Output `public/<app>/app.js`, stable/unhashed
+  and gitignored.
+- **Static, committed**: `public/<app>/index.html` (shell), `manifest.webmanifest`,
   `icon.svg`, `icon-maskable.svg`, `sw.js`. Icons are **placeholders** — branding is a
   separate sprint. They are SVG, which satisfies Chromium installability but **not iOS**,
   which wants PNG.
-- **Serving**: `/contacts` + `/contacts/{any}` serve the shell (`routes/web.php`). The
-  `[^.]*` route constraint keeps the catch-all off anything with a file extension, so the
-  real files above are served by the web server rather than swallowed by PHP — asserted by
-  `ContactsPwaServingTest`.
-- **Service worker**: hand-written (the bundle has stable names, so the precache list is
-  literal). Cache-first shell, `activate` deletes older `coevta-contacts-*` caches.
+- **Serving**: `/<app>` + `/<app>/{any}` serve that app's shell (`routes/web.php`, via the
+  shared `$pwaShell` factory). The `[^.]*` route constraint keeps the catch-all off anything
+  with a file extension, so the real files above are served by the web server rather than
+  swallowed by PHP — asserted by `ContactsPwaServingTest` / `TasksPwaServingTest`.
+- **Service worker**: hand-written per app (the bundles have stable names, so each precache
+  list is literal). Cache-first shell; `activate` deletes only that app's older caches
+  (`coevta-contacts-*`, `coevta-tasks-*`) — a broader prefix would wipe a sibling app's shell.
   **`/api/*` is never cached** — API data belongs to the offline layer, not the HTTP cache.
   **Maintenance**: adding a shell asset means adding it to `SHELL` *and* bumping `CACHE`;
   `addAll` is atomic, so a stale entry fails the whole install. `main.css` only `@import`s
-  its parts, so every part is precached individually (pinned by `ContactsPwaManifestTest`).
+  its parts, so every part is precached individually (pinned by the manifest tests). The
+  `/css/*` parts are shared by every app, so **a CSS change means bumping the cache version
+  in every app's worker**, not just the one being worked on.
 
 ### Offline data layer
 
 Reads and writes both go to the device first; the network is a background concern.
 
+**The whole layer is resource-agnostic and lives in `resources/shared/lib/`.** Operations
+carry a `recordId` and an opaque `payload`; a per-app store supplies its remote, its storage
+names and its ordering. There is **one outbox and one sync engine in the repo** — an app's
+`lib/store.js` is a dozen lines of wiring.
+
 - **Storage** (`shared/lib/kv.js`): a deliberately narrow async key-value interface
   (`get/set/del/all/keys/clear`) with an **IndexedDB** adapter and an **in-memory** one.
   That split is what lets the sync logic be unit-tested without a browser IndexedDB (no
   `fake-indexeddb` dependency). `createKv` falls back to memory where IndexedDB is absent
-  rather than throwing. The IDB adapter holds no logic and is not unit-tested.
-- **Store** (`pwa/contacts/lib/store.js`): the whole contact set lives on the device
-  (`listAllContacts` pages through), so the list, search, sort and the A–Z scrubber are all
-  client-side — **there is no pagination UI**. `refresh()` reconciles with the server but
-  **skips contacts with pending changes** in both directions: otherwise it would overwrite
-  an offline edit with the server's stale copy, or delete an offline-created contact the
-  server has never heard of.
-- **Outbox** (`lib/outbox.js`): a durable, ordered queue (monotonic `seq`, sequence derived
-  from storage so restarts continue rather than replay). Coalescing at enqueue:
+  rather than throwing. The IDB adapter holds no logic and is not unit-tested. **Each app
+  gets its own database** (`coevta-contacts`, `coevta-tasks`), so caches and queues cannot
+  collide.
+- **Store** (`shared/lib/store.js`, `createOfflineStore({ kv, outboxKv, remote, sort })`):
+  the whole record set lives on the device (`listAllContacts` / `listAllTasks` page through),
+  so listing, searching, sorting and the A–Z scrubber are all client-side — **there is no
+  pagination UI**. `refresh()` reconciles with the server but **skips records with pending
+  changes** in both directions: otherwise it would overwrite an offline edit with the
+  server's stale copy, or delete an offline-created record the server has never heard of.
+  `update()` takes a **complete body** — the API's PUT is a full replacement, so a partial
+  payload wipes fields when it eventually syncs.
+- **Outbox** (`shared/lib/outbox.js`): a durable, ordered queue (monotonic `seq`, sequence
+  derived from storage so restarts continue rather than replay). Coalescing at enqueue:
   create+delete cancels both; update+update keeps the last; update folds into a pending
   create (an update against an unsynced id would 404); delete drops a pending update.
-- **Sync** (`lib/sync.js`): `flush()` is **serialized** (start-up and the `online` event
-  routinely fire together). Per-operation failure policy: **401** stops and keeps the queue
-  for after re-auth; **404** drops the op and reconciles locally; **422** drops the op and
-  reports it (a poison op must never wedge the queue); anything else is transient — stop
+- **Sync** (`shared/lib/sync.js`): `flush()` is **serialized** (start-up and the `online`
+  event routinely fire together). Per-operation failure policy: **401** stops and keeps the
+  queue for after re-auth; **404** drops the op and reconciles locally; **422** drops the op
+  and reports it (a poison op must never wedge the queue); anything else is transient — stop
   and retry next flush, preserving order.
-- **Temporary ids**: contacts created offline get a `local-` id and appear immediately.
-  When the create syncs, the server's record replaces it and `remapContactId` repoints any
+- **Temporary ids**: records created offline get a `local-` id and appear immediately.
+  When the create syncs, the server's record replaces it and `remapRecordId` repoints any
   queued ops at the real id. Operations are flagged `sending` before the request leaves, and
   coalescing skips those — **folding an edit into an already-sent create would silently
-  drop it**. The form returns to the list after create, since the temp id is about to change.
+  drop it**. The contacts form returns to the list after create, since the temp id is about
+  to change.
 
 **Conflict resolution is last-write-wins, and this loses data by design.** Two devices
 editing the same contact offline means the later sync silently overwrites the earlier. The
 Contacts API exposes no version, ETag or `updated_at`, so a client cannot detect that a
 record changed underneath it, and the backend is fixed. Related: a create whose response is
-lost (network drop after the server committed) will be resent and **duplicate the contact** —
+lost (network drop after the server committed) will be resent and **duplicate the record** —
 the API has no idempotency key. Both are accepted, documented trade-offs of keeping the
 backend unchanged, not oversights.
+
+### Per-app specifics
+
+**Contacts** (`resources/pwa/contacts/`) — list, detail and form views; ordering and grouping
+come from `lib/alphabet.js`, which also drives the bottom-pinned A–Z scrubber (accent- and
+case-insensitive, `#` bucket for names that do not start with a letter).
+
+**Tasks** (`resources/pwa/tasks/`) — a single list view: quick-add, Open/Completed split,
+complete/reopen toggle, edit-in-modal and confirm-delete, so there is no detail or form route
+to deep-link to. `lib/ordering.js` sorts open tasks first (soonest due date, undated last,
+ties by title) and completed tasks below, most recently completed first; `isOverdue` marks an
+open task whose due date has passed. `due_at` may be date-only or a datetime and both shapes
+appear in the same list, so ordering compares them via `Date.parse`.
+
+**Completion is client-stamped, and this is the one place a PWA deliberately ignores an API
+endpoint.** `POST /tasks/{id}/complete` stamps `completed_at` server-side, which offline
+would record the moment the queue happened to drain — possibly days after the user ticked the
+box. So `store.complete(task)` is an ordinary update carrying `completed_at` from the device
+clock, and behaves identically online and offline. The endpoint remains in the API for other
+clients but **has no frontend consumer**. The cost is that a skewed device clock stamps a
+skewed time and last-write-wins cannot detect it.
+
+**The sharpest failure mode in the tasks app is a task silently reopening.** The API's PUT is
+a full replacement, so any queued update that omits `completed_at` clears it server-side. That
+is why `buildTaskBody` always returns every field, the store's complete/reopen build their
+body from the whole task, and the edit view carries `completed_at` through unchanged. It is
+covered by tests at every layer (outbox coalescing, sync payload, store round trip, and the
+edit view).
 
 ## Styling (Devilsberg brand, dark theme)
 
@@ -273,7 +328,7 @@ Google Tasks-compatible to-do items. Full CRUD; **update is PUT-only** (`PATCH` 
 - `POST /api/v1/tasks` — create; `201`.
 - `GET /api/v1/tasks/{id}` — one task; `404` if unknown.
 - `PUT /api/v1/tasks/{id}` — full replacement; `404` if unknown.
-- `POST /api/v1/tasks/{id}/complete` — **no body**; stamps `completed_at = now()`, returns `200` + the task. Idempotent.
+- `POST /api/v1/tasks/{id}/complete` — **no body**; stamps `completed_at = now()`, returns `200` + the task. Idempotent. **No frontend calls this**: the Tasks PWA stamps completion from the device clock so it works offline (see The PWAs → Per-app specifics). Kept for other clients.
 - `DELETE /api/v1/tasks/{id}` — `204`; `404` if unknown.
 
 **Model** (`App\Models\Task` extends `BaseModel`; UUID v7 id; **no timestamps**):
