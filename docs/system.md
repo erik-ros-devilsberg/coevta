@@ -80,6 +80,21 @@ login form is part of the Vue SPA and authenticates against the API like any oth
     `{config('app.frontend_url')}/reset-password?token=…&email=…`; `app.frontend_url`
     defaults to `APP_URL` (env `FRONTEND_URL`). The SPA reset view reads those query params
     and posts them to `reset-password`.
+  - **Reset is account-level, and deliberately central — never per-app.** One user row and
+    one credential back the SPA and all three PWAs, and a reset revokes every token, so it
+    signs the user out of Contacts, Tasks and Calendar at once. Giving each PWA its own
+    reset screen would imply per-app credentials, which is untrue. Each PWA login view
+    therefore links **out** to the shared `/reset-password` with a plain `<a href>`, and the
+    copy names the account ("Reset it for your whole account"). On an installed app this
+    opens a browser tab — accepted as honest signalling that this is an account action, not
+    a Contacts one, and the one intentional exception to the keep-navigation-in-scope rule.
+  - **Confirmation page** — a successful reset lands on `/password-reset-complete`
+    (`password.reset.complete`), not `/login`, because the user may have started from a PWA.
+    It states the account-wide sign-out and links back out to `/contacts/`, `/tasks/` and
+    `/calendar/` (plain anchors, so each opens its own app at its own scope). It also calls
+    `clearToken()` on render: the server has revoked the tokens, but the origin-wide
+    localStorage copy would otherwise survive, and the route guards only test that a token
+    *exists* — an app would render before its first request `401`s.
 
 Auth is deliberately **exempt from the "minimize computer says no" principle**: wrong
 credentials must fail (never defaulted). Error messages are generic and do not reveal
@@ -95,8 +110,9 @@ files (`response(file_get_contents(...))`, never `view()`).
 
 - **Landing** — `GET /` (`home`) serves the static `public/landing.html`. Public marketing
   page; CTA links to `/login`.
-- **App (Vue SPA)** — `GET /login` (`login`), `/dashboard` (`dashboard`) and `/reset-password`
-  (`password.reset`) serve the same static shell `public/app.html`. **`/contacts`, `/tasks` and
+- **App (Vue SPA)** — `GET /login` (`login`), `/dashboard` (`dashboard`), `/reset-password`
+  (`password.reset`) and `/password-reset-complete` (`password.reset.complete`) serve the same
+  static shell `public/app.html`. **`/contacts`, `/tasks` and
   `/calendar` are no longer among them** — each is its own PWA (see below), and the NavBar
   links to them are plain `<a href>` full page loads out of the SPA. No resource module lives
   here any more, but the SPA is **kept, not deleted**: it is being repurposed for a different
@@ -110,8 +126,9 @@ files (`response(file_get_contents(...))`, never `view()`).
 **SPA source** lives in `resources/spa/` (Vue 3 + vue-router):
 - `main.js` → `App.vue` → `router.js`.
 - **Auth views**: `LoginView`, `ResetPasswordView` (the reset view shows the "choose a new
-  password" form when the URL carries a token, else a "request a link" form) — centred,
-  no nav.
+  password" form when the URL carries a token, else a "request a link" form) and
+  `PasswordResetCompleteView` (post-reset confirmation; clears the local token and links back
+  out to each PWA) — centred, no nav.
 - **App shell**: authenticated views wrap their content in `<NavBar>` (`components/NavBar.vue`
   — wordmark + Calendar/Contacts/Tasks links + Log out) inside `.app`/`.app-main`.
   `resources/shared/components/ConfirmDialog.vue` provides the confirm-delete modal — it lives
@@ -152,6 +169,10 @@ path, and a navigation outside that scope drops an installed app back into a bro
 So each app is self-contained under its own prefix — including **its own login view**
 (`/contacts/login`), rather than sharing the SPA's `/login`. Apps share an origin, so the
 Sanctum token in localStorage is shared: log in once, all apps are authenticated.
+
+**Password reset is the deliberate exception.** It is an account-level action, so it stays
+central in the SPA and each PWA login view links out to it rather than owning a copy — see
+Authentication & login. Leaving scope is the point there, not a defect.
 
 - **Source**: `resources/pwa/<app>/` (`contacts`, `tasks`, `calendar`). **Shared, app-agnostic
   code**: `resources/shared/` (`lib/api.js`, `lib/auth.js`, `lib/kv.js`, `lib/outbox.js`,

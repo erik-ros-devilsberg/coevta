@@ -28,7 +28,10 @@ async function submitReset() {
 			password: password.value,
 			passwordConfirmation: passwordConfirmation.value,
 		});
-		router.push('/login');
+		// Not /login — the user may have started at one of the PWAs, so the
+		// confirmation page reports the account-wide sign-out and offers a way
+		// back to whichever app they came from.
+		router.push('/password-reset-complete');
 	} catch (e) {
 		error.value = 'This password reset token is invalid or has expired.';
 	} finally {

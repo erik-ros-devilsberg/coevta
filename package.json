@@ -9,6 +9,9 @@
         "build:tasks": "vite build --config vite.tasks.config.js",
         "build:calendar": "vite build --config vite.calendar.config.js",
         "dev": "vite",
+        "dev:contacts": "vite build --watch --config vite.contacts.config.js",
+        "dev:tasks": "vite build --watch --config vite.tasks.config.js",
+        "dev:calendar": "vite build --watch --config vite.calendar.config.js",
         "test": "vitest run"
     },
     "dependencies": {

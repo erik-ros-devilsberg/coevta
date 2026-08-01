@@ -68,4 +68,16 @@ describe('ContactsLoginView', () => {
 
 		expect(wrapper.get('.error').text()).toContain('Could not sign in');
 	});
+
+	it('offers a way out of a forgotten password', () => {
+		const wrapper = mount(ContactsLoginView, mountOpts);
+
+		// A plain anchor, not a router-link: reset is central and lives outside
+		// the /contacts/ router base, so the app's own router cannot resolve it.
+		const link = wrapper.get('a[href="/reset-password"]');
+
+		// One account behind all three apps — the wording must not suggest this
+		// resets a Contacts-only password.
+		expect(link.text()).toContain('account');
+	});
 });

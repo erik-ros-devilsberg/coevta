@@ -22,6 +22,7 @@ $spa = fn () => response(
 Route::get('/login', $spa)->name('login');
 Route::get('/dashboard', $spa)->name('dashboard');
 Route::get('/reset-password', $spa)->name('password.reset');
+Route::get('/password-reset-complete', $spa)->name('password.reset.complete');
 
 // Each PWA is a separate installable app with its own service worker scope, so
 // each has its own static shell rather than sharing the SPA's. Their

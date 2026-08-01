@@ -57,5 +57,13 @@ async function submit() {
 			</label>
 			<button class="btn btn--primary" type="submit" :disabled="busy">Sign in</button>
 		</form>
+
+		<!-- A plain anchor, deliberately leaving the app: one account backs all
+		     three PWAs, so reset is central rather than per-app. It lives outside
+		     this router's /calendar/ base, and on an installed app it opens a
+		     browser tab — honest signalling that this is an account action. -->
+		<p class="mt-2">
+			<a href="/reset-password">Forgot your password? Reset it for your whole account</a>
+		</p>
 	</main>
 </template>

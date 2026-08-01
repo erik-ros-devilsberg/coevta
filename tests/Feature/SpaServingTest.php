@@ -36,6 +36,14 @@ class SpaServingTest extends TestCase
 		$this->assertServesShell('/reset-password');
 	}
 
+	public function test_password_reset_complete_route_serves_the_static_shell(): void
+	{
+		// The confirmation page is reached client-side after a reset, but it must
+		// also survive a reload or a direct hit — SPA routes are explicit here,
+		// only the PWAs have catch-alls.
+		$this->assertServesShell('/password-reset-complete');
+	}
+
 	public function test_contacts_is_no_longer_served_by_this_spa(): void
 	{
 		// Contacts has moved to its own PWA under /contacts/ (separate service

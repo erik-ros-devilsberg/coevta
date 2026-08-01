@@ -19,3 +19,4 @@ Maintained by the agile plugin. One row per sprint — updated by `/agile:shape`
 | Contacts Offline Writes and Sync Queue | contacts-offline-writes-and-sync | done | Offline create/edit/delete via a durable outbox with temp-id remap and last-write-wins sync. |
 | Tasks PWA and Shared Offline Layer | tasks-pwa-and-shared-offline-layer | done | Installable offline-first tasks PWA at /tasks, on a generalised shared offline layer. |
 | Calendar PWA | calendar-pwa | done | Installable offline-first calendar PWA at /calendar, the third app on the shared layer. |
+| PWA Password Reset Access | pwa-password-reset | done | Account-scoped reset link in all three PWA logins plus a central /password-reset-complete confirmation page. |

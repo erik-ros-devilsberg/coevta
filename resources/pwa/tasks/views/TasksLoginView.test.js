@@ -68,4 +68,14 @@ describe('TasksLoginView', () => {
 
 		expect(wrapper.get('.error').text()).toContain('Could not sign in');
 	});
+
+	it('offers a way out of a forgotten password', () => {
+		const wrapper = mount(TasksLoginView, mountOpts);
+
+		// A plain anchor, not a router-link: reset is central and lives outside
+		// the /tasks/ router base, so the app's own router cannot resolve it.
+		const link = wrapper.get('a[href="/reset-password"]');
+
+		expect(link.text()).toContain('account');
+	});
 });

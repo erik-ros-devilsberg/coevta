@@ -23,6 +23,13 @@ export default defineConfig({
         },
     },
     server: {
+        // Only the SPA has a vite dev server: it owns an index.html here in
+        // resources. The three PWAs are client-side static bundles served from
+        // one origin by the app on 8040 (/contacts/, /tasks/, /calendar/), so
+        // they run `vite build --watch` instead — see the `dev` script in
+        // composer.json. strictPort makes a clash fail loudly.
+        port: 8041,
+        strictPort: true,
         watch: {
             ignored: ['**/storage/framework/views/**'],
         },
