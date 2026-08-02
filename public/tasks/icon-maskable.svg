@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Tasks">
-	<!-- Maskable variant: the glyph sits inside the 80% safe zone so platforms
-	     that crop to a circle or squircle cannot clip it. Placeholder — see the
-	     branding sprint. -->
-	<rect width="512" height="512" fill="#0a0a10" />
-	<path d="M164 262l62 62 128-128" fill="none" stroke="#f7f7ff" stroke-width="48" stroke-linecap="round" stroke-linejoin="round" />
-</svg>

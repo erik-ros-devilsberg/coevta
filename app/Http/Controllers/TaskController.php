@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\PatchTaskRequest;
 use App\Http\Requests\StoreTaskRequest;
 use App\Http\Requests\UpdateTaskRequest;
 use App\Http\Resources\TaskResource;
@@ -45,6 +46,22 @@ class TaskController extends Controller
 	}
 
 	public function update(UpdateTaskRequest $request, string $task): TaskResource
+	{
+		/** @var User $user */
+		$user = $request->user();
+
+		$model = $user->tasks()->findOrFail($task);
+		$model->update($request->validated());
+
+		return TaskResource::make($model);
+	}
+
+	/**
+	 * Partial update — the request has already merged the patch onto the stored
+	 * task, so from here it is the same write as update(). Unlike update(), a
+	 * body without completed_at leaves a completed task completed.
+	 */
+	public function patch(PatchTaskRequest $request, string $task): TaskResource
 	{
 		/** @var User $user */
 		$user = $request->user();

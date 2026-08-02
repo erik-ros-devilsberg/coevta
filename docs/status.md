@@ -20,3 +20,5 @@ Maintained by the agile plugin. One row per sprint — updated by `/agile:shape`
 | Tasks PWA and Shared Offline Layer | tasks-pwa-and-shared-offline-layer | done | Installable offline-first tasks PWA at /tasks, on a generalised shared offline layer. |
 | Calendar PWA | calendar-pwa | done | Installable offline-first calendar PWA at /calendar, the third app on the shared layer. |
 | PWA Password Reset Access | pwa-password-reset | done | Account-scoped reset link in all three PWA logins plus a central /password-reset-complete confirmation page. |
+| Strip Frontend to Landing Page | strip-frontend-to-landing-page | done | Deleted the Vue SPA, PWAs and Node toolchain; API plus one static landing page remains. |
+| PATCH Partial Updates | patch-partial-updates | done | Adds PATCH partial updates to contacts, events and tasks; PUT unchanged. |

@@ -21,9 +21,12 @@ class AppServiceProvider extends ServiceProvider
 	 */
 	public function boot(): void
 	{
-		// The reset link in recovery emails points at the client-side frontend
-		// (static landing / Vue SPA), not the API. The SPA reads token + email
-		// from the URL and posts them to POST /api/v1/reset-password.
+		// The reset link in recovery emails points at a client, not the API:
+		// whatever consumes this backend owns the "choose a new password" page,
+		// reads token + email from the URL and posts them to
+		// POST /api/v1/reset-password. Set FRONTEND_URL to that client's origin.
+		// This project no longer ships a frontend, so with the default
+		// FRONTEND_URL the link has nowhere to land.
 		ResetPassword::createUrlUsing(function (mixed $notifiable, string $token): string {
 			$configured = config('app.frontend_url');
 			$base = is_string($configured) ? rtrim($configured, '/') : '';

@@ -36,19 +36,23 @@ p {
 	margin: 0 0 1.5rem;
 }
 
+/* Dark canvas, so this follows devilsberg.com's dark-surface links
+   (`.menu-overlay__links`, src/css/layout.css): grey, brightening to white on
+   hover. Green is a light-background colour there; fuchsia is for alerts. */
 a {
-	color: var(--hot-fuchsia);
-	text-decoration: none;
+	color: var(--gray-mid);
+	text-decoration: underline;
+	text-underline-offset: 2px;
 	transition: color var(--transition);
 }
 
 a:hover {
-	text-decoration: underline;
+	color: var(--ghost-white);
 }
 
 /* Visible focus affordance for keyboard navigation. */
 a:focus-visible,
 button:focus-visible {
-	outline: 2px solid var(--hot-fuchsia);
+	outline: 2px solid var(--ghost-white);
 	outline-offset: 2px;
 }

@@ -1,8 +1,0 @@
-/*
- * Vite CSS entry. Tailwind has been removed in favour of hand-written, central
- * styling under public/css/ (see public/css/main.css and its imports), which the
- * static landing page loads directly.
- *
- * This entry is reserved for the Vue SPA build (next sprint); it currently holds
- * no styles of its own.
- */

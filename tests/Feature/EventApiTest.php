@@ -37,6 +37,7 @@ class EventApiTest extends TestCase
 			'show' => ['get', '/api/v1/events/some-id'],
 			'store' => ['post', '/api/v1/events'],
 			'update' => ['put', '/api/v1/events/some-id'],
+			'patch' => ['patch', '/api/v1/events/some-id'],
 			'destroy' => ['delete', '/api/v1/events/some-id'],
 		];
 	}
@@ -328,13 +329,144 @@ class EventApiTest extends TestCase
 			->assertNotFound();
 	}
 
-	public function test_patch_is_not_allowed(): void
+	// --- Patch (partial update) ---------------------------------------------
+
+	/**
+	 * A fixed, fully-populated timed event to patch against.
+	 */
+	private function storedEvent(): Event
+	{
+		return Event::factory()->for($this->user)->create([
+			'title' => 'Stand-up',
+			'description' => 'Daily sync',
+			'location' => 'Room 2',
+			'start_at' => '2026-07-01T10:00:00Z',
+			'end_at' => '2026-07-01T11:00:00Z',
+			'all_day' => false,
+		]);
+	}
+
+	public function test_patch_changes_only_the_field_it_carries(): void
 	{
 		$this->actAsUser();
-		$event = Event::factory()->for($this->user)->create();
+		$event = $this->storedEvent();
 
-		$this->patchJson("/api/v1/events/{$event->id}", ['title' => 'X'])
-			->assertStatus(405);
+		$response = $this->patchJson("/api/v1/events/{$event->id}", ['title' => 'Retro']);
+
+		$response->assertOk();
+		$response->assertJsonPath('data.title', 'Retro');
+		// The times in particular must survive — normalization runs over the
+		// merged record, so a bad merge would quietly reset them to now().
+		$response->assertJsonPath('data.description', 'Daily sync');
+		$response->assertJsonPath('data.location', 'Room 2');
+		$response->assertJsonPath('data.start_at', '2026-07-01T10:00:00.000000Z');
+		$response->assertJsonPath('data.end_at', '2026-07-01T11:00:00.000000Z');
+		$response->assertJsonPath('data.all_day', false);
+	}
+
+	public function test_patch_with_an_explicit_null_clears_that_field_only(): void
+	{
+		$this->actAsUser();
+		$event = $this->storedEvent();
+
+		$response = $this->patchJson("/api/v1/events/{$event->id}", ['description' => null]);
+
+		$response->assertOk();
+		$response->assertJsonPath('data.description', null);
+		$response->assertJsonPath('data.location', 'Room 2');
+		$response->assertJsonPath('data.title', 'Stand-up');
+	}
+
+	public function test_patch_start_past_the_stored_end_corrects_the_end(): void
+	{
+		$this->actAsUser();
+		$event = $this->storedEvent();
+
+		// Forgiving, exactly as PUT is: the end moves rather than 422ing.
+		$response = $this->patchJson("/api/v1/events/{$event->id}", [
+			'start_at' => '2026-07-01T14:00:00Z',
+		]);
+
+		$response->assertOk();
+		$response->assertJsonPath('data.start_at', '2026-07-01T14:00:00.000000Z');
+		$response->assertJsonPath('data.end_at', '2026-07-01T15:00:00.000000Z');
+	}
+
+	public function test_patch_all_day_snaps_the_stored_bounds(): void
+	{
+		$this->actAsUser();
+		$event = $this->storedEvent();
+
+		$response = $this->patchJson("/api/v1/events/{$event->id}", ['all_day' => true]);
+
+		$response->assertOk();
+		$response->assertJsonPath('data.all_day', true);
+		$response->assertJsonPath('data.start_at', '2026-07-01T00:00:00.000000Z');
+		$response->assertJsonPath('data.end_at', '2026-07-01T23:59:59.000000Z');
+	}
+
+	public function test_patch_rejects_a_date_it_cannot_read_and_keeps_the_stored_one(): void
+	{
+		$this->actAsUser();
+		$event = $this->storedEvent();
+
+		// PUT would coerce this to now(); a patch says no rather than moving an
+		// event the client never meant to move.
+		$this->patchJson("/api/v1/events/{$event->id}", ['start_at' => 'banana'])
+			->assertStatus(422)
+			->assertJsonValidationErrors('start_at');
+
+		$this->patchJson("/api/v1/events/{$event->id}", ['end_at' => 'whenever'])
+			->assertStatus(422)
+			->assertJsonValidationErrors('end_at');
+
+		$fresh = $event->fresh();
+		$this->assertSame('2026-07-01T10:00:00.000000Z', $fresh->start_at->toIso8601ZuluString('microsecond'));
+		$this->assertSame('2026-07-01T11:00:00.000000Z', $fresh->end_at->toIso8601ZuluString('microsecond'));
+	}
+
+	public function test_patch_with_an_empty_body_changes_nothing(): void
+	{
+		$this->actAsUser();
+		$event = $this->storedEvent();
+
+		$response = $this->patchJson("/api/v1/events/{$event->id}", []);
+
+		$response->assertOk();
+		$response->assertJsonPath('data.title', 'Stand-up');
+		$response->assertJsonPath('data.start_at', '2026-07-01T10:00:00.000000Z');
+		$response->assertJsonPath('data.end_at', '2026-07-01T11:00:00.000000Z');
+		$response->assertJsonPath('data.all_day', false);
+	}
+
+	public function test_patch_ignores_a_user_id_in_the_body(): void
+	{
+		$this->actAsUser();
+		$event = $this->storedEvent();
+		$other = User::factory()->create();
+
+		$this->patchJson("/api/v1/events/{$event->id}", [
+			'title' => 'Renamed',
+			'user_id' => $other->id,
+		])->assertOk();
+
+		$this->assertSame($this->user->id, $event->fresh()->user_id);
+	}
+
+	public function test_patch_unknown_event_returns_404(): void
+	{
+		$this->actAsUser();
+
+		$this->patchJson('/api/v1/events/non-existent', ['title' => 'X'])->assertNotFound();
+	}
+
+	public function test_patch_other_users_event_returns_404(): void
+	{
+		$this->actAsUser();
+		$other = Event::factory()->for(User::factory()->create())->create(['title' => 'Theirs']);
+
+		$this->patchJson("/api/v1/events/{$other->id}", ['title' => 'Mine'])->assertNotFound();
+		$this->assertSame('Theirs', $other->fresh()->title);
 	}
 
 	public function test_destroy_removes_an_event(): void

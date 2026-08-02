@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\PatchEventRequest;
 use App\Http\Requests\StoreEventRequest;
 use App\Http\Requests\UpdateEventRequest;
 use App\Http\Resources\EventResource;
@@ -44,6 +45,21 @@ class EventController extends Controller
 	}
 
 	public function update(UpdateEventRequest $request, string $event): EventResource
+	{
+		/** @var User $user */
+		$user = $request->user();
+
+		$model = $user->events()->findOrFail($event);
+		$model->update($request->validated());
+
+		return EventResource::make($model);
+	}
+
+	/**
+	 * Partial update — the request has already merged the patch onto the stored
+	 * event, so from here it is the same write as update().
+	 */
+	public function patch(PatchEventRequest $request, string $event): EventResource
 	{
 		/** @var User $user */
 		$user = $request->user();

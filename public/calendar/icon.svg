@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Calendar">
-	<!-- Placeholder mark. Branding, iconography and visual design are out of
-	     scope for this sprint and land in a dedicated branding sprint; this is a
-	     neutral glyph so the app is installable in the meantime. -->
-	<rect width="512" height="512" rx="96" fill="#0a0a10" />
-	<rect x="112" y="144" width="288" height="256" rx="28" fill="none" stroke="#f7f7ff" stroke-width="32" />
-	<path d="M112 224h288" stroke="#f7f7ff" stroke-width="32" stroke-linecap="round" />
-	<path d="M184 112v64M328 112v64" stroke="#f7f7ff" stroke-width="32" stroke-linecap="round" />
-</svg>

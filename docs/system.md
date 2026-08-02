@@ -29,8 +29,29 @@ These were decided in the Project Foundation sprint and apply to every later fea
 ## REST & API conventions (all entities)
 
 - JSON in, JSON out (`Content-Type: application/json`).
-- Resource routes: `index` (GET collection), `show` (GET one), `store` (POST), `update` (PUT/PATCH), `destroy` (DELETE).
+- Resource routes: `index` (GET collection), `show` (GET one), `store` (POST), `update` (PUT), `patch` (PATCH), `destroy` (DELETE).
 - Validation in `FormRequest` classes; responses via API `Resource` classes; controllers stay thin.
+- **PUT replaces, PATCH updates in part.** `PUT` takes the whole record — every omitted field
+  resets to its default (for tasks that means **omitting `completed_at` reopens the task**).
+  `PATCH` changes only the keys the body carries; an explicit `null` clears a field, an absent
+  key is left alone, and `PATCH {}` is a `200` no-op.
+  - **Implementation**: `Patch*Request extends Update*Request` + the
+    `MergesPatchIntoStoredRecord` concern. The concern lays the body over the stored record's
+    **own JSON shape** (`json_encode`/`json_decode` of the API `Resource`) and the inherited
+    rules and normalization then run over the merged whole — so cross-field behaviour is
+    identical to `PUT` (event `end_at` follows a moved `start_at`, `all_day` snaps the stored
+    bounds, a task's `due_has_time` is re-derived from the merged `due_at`). Encoding through
+    the Resource is what keeps Carbon out of the merge (it would parse as null and silently
+    reset the record) and what preserves date-only `due_at` granularity.
+  - When the record does not exist or belongs to someone else, the patch request returns **no
+    rules at all**, so the controller's `findOrFail()` gives the usual `404` instead of a
+    misleading `422`.
+  - **A date PATCH cannot read is a `422` — a deliberate exception to "minimize computer says
+    no"** (`birthday`, `start_at`, `end_at`, `due_at`, `completed_at`). `PUT` still coerces
+    garbage to null/`now()`, because there the client sent the whole record; on a partial
+    update, wiping or moving a stored date over a typo is the worse outcome. Mechanically the
+    concern leaves the unreadable string in place so the inherited `date` rule rejects it.
+    `null` and `""` are treated as empty, not garbage, and still clear the field.
 - **Error envelope** (JSON, gated to `api/*` paths via `shouldRenderJsonWhen` in `bootstrap/app.php`):
   - `422` validation — `{ "message": ..., "errors": { field: [...] } }`
   - `404` not found — `{ "message": ... }`
@@ -45,26 +66,23 @@ These were decided in the Project Foundation sprint and apply to every later fea
 - **PHP-CS-Fixer** — `@PSR12` with **tab** indentation (`->setIndent("\t")`); `composer fix` / `composer fix:check`.
 - **composer audit** — clean.
 - **Coverage** — `composer coverage` runs PHPUnit with clover output and `bin/coverage-check.php` enforces a **90%** line-coverage minimum (requires a pcov/xdebug driver). Currently at **100%**.
-- **Frontend** — `npm run build` (Vite) builds **every app** (legacy SPA + each PWA, one config
-  per app); `npm test` runs **Vitest** (`vitest run`, jsdom env — config in `vitest.config.js`)
-  over `resources/**/*.test.js`, which spans all three source trees: `shared/`, `spa/` and
-  `pwa/`. Two layers: **lib unit tests** (`lib/*.test.js` — API client behaviour, payload
-  shapes, datetime/month helpers, storage contract, outbox/sync logic, `401`/`422` paths) and
-  **component tests** (`views/*.test.js` — `@vue/test-utils` mounting a view, mocking the
-  `lib`/`vue-router` modules, asserting calls + rendered state, e.g. `LoginView` auth flow,
-  `TasksView` quick-add/complete, offline create/edit/delete). The JS suite is **not** part of
-  `composer gates` — run `npm test` alongside it.
+- **No frontend toolchain** — there is no npm, Vite or Vitest step. `composer gates` is the
+  whole story (see "Frontend removed"). A clean clone needs PHP and Composer only.
+- **Local run** — `composer setup` (install, `.env`, key, migrate) then `composer dev`,
+  which is a plain `php artisan serve --port=8040`. It used to fan out over `concurrently`
+  (queue, pail, four vite watchers); that went with the Node toolchain, so **the queue
+  listener and `pail` are now separate manual commands** when they are needed.
 
 ## Authentication & login
 
-Auth is **API-token only** (Sanctum). There is **no web/session login** — the browser
-login form is part of the Vue SPA and authenticates against the API like any other client.
+Auth is **API-token only** (Sanctum). There is **no web/session login and no login page** —
+a client authenticates against the API like any other consumer.
 (`UserFactory` default password is `password`.)
 
 - **Login** (`POST /api/v1/login`) returns a Sanctum personal access token
-  (`$user->createToken()`), the same model the `coevta:create-token` command mints. The SPA
-  stores it client-side (localStorage) and sends it as a bearer token; `POST /api/v1/logout`
-  revokes the current token.
+  (`$user->createToken()`), the same model the `coevta:create-token` command mints. The
+  client stores it and sends it as a bearer token; `POST /api/v1/logout` revokes the
+  current token.
 - **Password recovery** (`POST /api/v1/forgot-password`, `POST /api/v1/reset-password`) is
   built on Laravel's `Password` broker against the stock `password_reset_tokens` table
   (`App\Http\Controllers\PasswordResetController`). Key behaviours:
@@ -75,26 +93,18 @@ login form is part of the Vue SPA and authenticates against the API like any oth
   - New password policy: `min:8`, `confirmed`.
   - **On a successful reset all of the user's Sanctum tokens are revoked**
     (`$user->tokens()->delete()`), so a leaked password cannot keep live sessions alive.
-  - The reset link in the email points at the **frontend** (SPA), not the API:
+  - The reset link in the email points at a **client**, not the API:
     `ResetPassword::createUrlUsing` (in `AppServiceProvider`) builds
     `{config('app.frontend_url')}/reset-password?token=…&email=…`; `app.frontend_url`
-    defaults to `APP_URL` (env `FRONTEND_URL`). The SPA reset view reads those query params
-    and posts them to `reset-password`.
-  - **Reset is account-level, and deliberately central — never per-app.** One user row and
-    one credential back the SPA and all three PWAs, and a reset revokes every token, so it
-    signs the user out of Contacts, Tasks and Calendar at once. Giving each PWA its own
-    reset screen would imply per-app credentials, which is untrue. Each PWA login view
-    therefore links **out** to the shared `/reset-password` with a plain `<a href>`, and the
-    copy names the account ("Reset it for your whole account"). On an installed app this
-    opens a browser tab — accepted as honest signalling that this is an account action, not
-    a Contacts one, and the one intentional exception to the keep-navigation-in-scope rule.
-  - **Confirmation page** — a successful reset lands on `/password-reset-complete`
-    (`password.reset.complete`), not `/login`, because the user may have started from a PWA.
-    It states the account-wide sign-out and links back out to `/contacts/`, `/tasks/` and
-    `/calendar/` (plain anchors, so each opens its own app at its own scope). It also calls
-    `clearToken()` on render: the server has revoked the tokens, but the origin-wide
-    localStorage copy would otherwise survive, and the route guards only test that a token
-    *exists* — an app would render before its first request `401`s.
+    defaults to `APP_URL` (env `FRONTEND_URL`). Whatever consumes this backend owns that
+    page: it reads the query params and posts them to `reset-password`.
+  - **This project no longer serves that page.** The SPA that used to own
+    `/reset-password` was deleted (see "Frontend removed"), and no replacement was built —
+    an accepted consequence, not an oversight. Point `FRONTEND_URL` at a client that
+    implements the page, or the emailed link lands nowhere. `PasswordResetApiTest` still
+    pins the **shape** of the URL, which is all the backend is responsible for.
+  - **Reset is account-level.** One user row and one credential back every client, and a
+    reset revokes every token at once, so it signs the user out everywhere.
 
 Auth is deliberately **exempt from the "minimize computer says no" principle**: wrong
 credentials must fail (never defaulted). Error messages are generic and do not reveal
@@ -102,217 +112,51 @@ whether an email is registered. Login and both recovery endpoints are rate-limit
 (`throttle:6,1`). There is no registration yet — users come from `coevta:create-token`
 (or a future user-management story).
 
-## Frontend (static landing + Vue SPA)
+## Frontend removed (2026-08-02)
 
-**There is no server-side rendering.** The backend is API-only; the frontend is static.
-Blade has been removed (no `resources/views`). `routes/web.php` only streams static HTML
-files (`response(file_get_contents(...))`, never `view()`).
+**The Vue frontend experiment failed and was deleted.** This repo is the Laravel backend
+plus one static landing page — nothing else. The decision is deliberate: a client is
+someone else's project, consuming the REST API like any other consumer.
 
-- **Landing** — `GET /` (`home`) serves the static `public/landing.html`. Public marketing
-  page; CTA links to `/login`.
-- **App (Vue SPA)** — `GET /login` (`login`), `/dashboard` (`dashboard`), `/reset-password`
-  (`password.reset`) and `/password-reset-complete` (`password.reset.complete`) serve the same
-  static shell `public/app.html`. **`/contacts`, `/tasks` and
-  `/calendar` are no longer among them** — each is its own PWA (see below), and the NavBar
-  links to them are plain `<a href>` full page loads out of the SPA. No resource module lives
-  here any more, but the SPA is **kept, not deleted**: it is being repurposed for a different
-  use, and password reset depends on it (see Authentication & login), so treat the shell and
-  its auth views as live. The SPA's client-side router (history mode) renders the right view,
-  so deep links resolve instead of 404ing. Auth is enforced **client-side** (`requiresAuth`
-  routes bounce tokenless users to `/login`); the server never 302s guests. **Every new SPA
-  route needs both a router entry and a `routes/web.php` shell route** (covered by
-  `SpaServingTest`).
+**What the web surface is now.** `routes/web.php` holds exactly **one** route: `GET /`
+(`home`) streams `public/landing.html` as HTML (`response(file_get_contents(...))`, never
+`view()`). There is no server-side rendering, no Blade, no `resources/` directory at all.
+Everything else this project does lives under `/api/v1`.
 
-**SPA source** lives in `resources/spa/` (Vue 3 + vue-router):
-- `main.js` → `App.vue` → `router.js`.
-- **Auth views**: `LoginView`, `ResetPasswordView` (the reset view shows the "choose a new
-  password" form when the URL carries a token, else a "request a link" form) and
-  `PasswordResetCompleteView` (post-reset confirmation; clears the local token and links back
-  out to each PWA) — centred, no nav.
-- **App shell**: authenticated views wrap their content in `<NavBar>` (`components/NavBar.vue`
-  — wordmark + Calendar/Contacts/Tasks links + Log out) inside `.app`/`.app-main`.
-  `resources/shared/components/ConfirmDialog.vue` provides the confirm-delete modal — it lives
-  in `shared/` because the PWA needs it too, and two copies would drift apart. These are reused
-  by all modules.
-- **Module views**: `DashboardView` (home) is the only one left — every resource module now
-  lives in its own PWA.
-- `lib/` is the testable, framework-free core. The app-agnostic parts now live in
-  `resources/shared/lib/` — `api.js` (bearer-token JSON client; token in localStorage with an
-  in-memory fallback; clears token on `401`), `auth.js` (login/logout/currentUser) and
-  the three resource clients `contacts.js` (+ `listAllContacts`), `tasks.js` (+ `completeTask`,
-  `listAllTasks`, `buildTaskBody`) and `events.js` (+ `listAllEvents`), plus `datetime.js`
-  (date/datetime helpers — keeps date-only vs datetime granularity, `localDateKey` for day
-  mapping, shows datetimes in local time, sends/stores ISO 8601 UTC). There is exactly one of
-  each in the repo. What stays SPA-only is `resources/spa/lib/passwords.js`
-  (requestReset/resetPassword); `month.js` moved to `resources/pwa/calendar/lib/` because only
-  the calendar will ever use it. **Convention**: each module gets a thin
-  `lib/<resource>.js` over `apiFetch`, unit-tested with Vitest; views handle `401` by
-  redirecting to `/login` and `422` by mapping `err.data.errors` onto fields.
+**What was deleted**, in one sprint:
 
-**Build & serving.** Vite (`@vitejs/plugin-vue`) builds `resources/spa/main.js` to
-`public/spa/app.js` with a **stable (unhashed) filename**, so the committed shell
-`public/app.html` references `/spa/app.js` directly — no manifest, no `@vite`, no Blade.
-`public/spa/` is a build artifact (gitignored); `npm run build` (run by `composer setup`)
-produces it.
+- The legacy Vue SPA (`resources/spa/`, `public/app.html`, `public/spa/`) and its routes
+  `/login`, `/dashboard`, `/reset-password`, `/password-reset-complete`.
+- All three PWAs — contacts, tasks and calendar (`resources/pwa/*`, `public/contacts/`,
+  `public/tasks/`, `public/calendar/`, including shells, service workers, manifests and
+  placeholder icons) and their `/<app>` + `/<app>/{any}` catch-all routes.
+- The shared frontend core `resources/shared/` (API client, auth, the offline layer —
+  `kv.js`, `outbox.js`, `sync.js`, `store.js` — datetime helpers, resource clients,
+  `ConfirmDialog.vue`).
+- The whole Node toolchain: `package.json`, `package-lock.json`, `node_modules/`, the four
+  Vite configs and `vitest.config.js`; and the npm steps in `composer setup` / `composer dev`.
+- Their tests: `SpaServingTest`, the three `*PwaServingTest`, the three `*PwaManifestTest`,
+  and every `*.test.js` (the entire Vitest suite).
 
-## The PWAs (offline-first apps)
+**Consequences accepted at the time, not defects:**
 
-Each resource ships as a **standalone installable PWA**, separate from the legacy SPA.
-**Contacts** (`/contacts/`), **Tasks** (`/tasks/`) and **Calendar** (`/calendar/`) are each
-their own installable app. The legacy SPA is **retained** — it is being repurposed rather than
-retired — and keeps `/dashboard`, `/login` and `/reset-password`; password reset depends on it,
-so treat its shell and auth views as live. The backend is unchanged — the PWAs are just API
-clients.
+- **The landing page CTA points at `/login`, which now returns `404`.** Left as-is on
+  purpose; rewording it is a separate concern.
+- **`/reset-password` no longer exists here.** Recovery emails still carry
+  `{FRONTEND_URL}/reset-password?token=…&email=…` — see Authentication & login. Whoever
+  builds a client owns that page.
+- **The deleted apps live only in git history.** Nothing was extracted to another repo.
 
-**Why separate apps rather than one SPA.** A service worker's scope is bounded by its
-path, and a navigation outside that scope drops an installed app back into a browser tab.
-So each app is self-contained under its own prefix — including **its own login view**
-(`/contacts/login`), rather than sharing the SPA's `/login`. Apps share an origin, so the
-Sanctum token in localStorage is shared: log in once, all apps are authenticated.
-
-**Password reset is the deliberate exception.** It is an account-level action, so it stays
-central in the SPA and each PWA login view links out to it rather than owning a copy — see
-Authentication & login. Leaving scope is the point there, not a defect.
-
-- **Source**: `resources/pwa/<app>/` (`contacts`, `tasks`, `calendar`). **Shared, app-agnostic
-  code**: `resources/shared/` (`lib/api.js`, `lib/auth.js`, `lib/kv.js`, `lib/outbox.js`,
-  `lib/sync.js`, `lib/store.js`, `lib/datetime.js`, the resource clients `lib/contacts.js` /
-  `lib/tasks.js` / `lib/events.js`, and `components/ConfirmDialog.vue`) — imported by the PWAs
-  and the legacy SPA. There is exactly one of each in the repo.
-- **Build**: one Vite config per app (`vite.contacts.config.js`, `vite.tasks.config.js`,
-  `vite.calendar.config.js`; root `resources/pwa/<app>`, `emptyOutDir: false` because committed
-  static files share the output directory). `npm run build` builds every app. Output
-  `public/<app>/app.js`, stable/unhashed and gitignored.
-- **Static, committed**: `public/<app>/index.html` (shell), `manifest.webmanifest`,
-  `icon.svg`, `icon-maskable.svg`, `sw.js`. Icons are **placeholders** — branding is a
-  separate sprint. They are SVG, which satisfies Chromium installability but **not iOS**,
-  which wants PNG.
-- **Serving**: `/<app>` + `/<app>/{any}` serve that app's shell (`routes/web.php`, via the
-  shared `$pwaShell` factory). The `[^.]*` route constraint keeps the catch-all off anything
-  with a file extension, so the real files above are served by the web server rather than
-  swallowed by PHP — asserted by `ContactsPwaServingTest` / `TasksPwaServingTest`.
-- **Service worker**: hand-written per app (the bundles have stable names, so each precache
-  list is literal). Cache-first shell; `activate` deletes only that app's older caches
-  (`coevta-contacts-*`, `coevta-tasks-*`, `coevta-calendar-*`) — a broader prefix would wipe a
-  sibling app's shell.
-  **`/api/*` is never cached** — API data belongs to the offline layer, not the HTTP cache.
-  **Maintenance**: adding a shell asset means adding it to `SHELL` *and* bumping `CACHE`;
-  `addAll` is atomic, so a stale entry fails the whole install. `main.css` only `@import`s
-  its parts, so every part is precached individually (pinned by the manifest tests). The
-  `/css/*` parts are shared by every app, so **a CSS change means bumping the cache version
-  in every app's worker**, not just the one being worked on.
-
-### Offline data layer
-
-Reads and writes both go to the device first; the network is a background concern.
-
-**The whole layer is resource-agnostic and lives in `resources/shared/lib/`.** Operations
-carry a `recordId` and an opaque `payload`; a per-app store supplies its remote, its storage
-names and its ordering. There is **one outbox and one sync engine in the repo** — an app's
-`lib/store.js` is a dozen lines of wiring.
-
-- **Storage** (`shared/lib/kv.js`): a deliberately narrow async key-value interface
-  (`get/set/del/all/keys/clear`) with an **IndexedDB** adapter and an **in-memory** one.
-  That split is what lets the sync logic be unit-tested without a browser IndexedDB (no
-  `fake-indexeddb` dependency). `createKv` falls back to memory where IndexedDB is absent
-  rather than throwing. The IDB adapter holds no logic and is not unit-tested. **Each app
-  gets its own database** (`coevta-contacts`, `coevta-tasks`, `coevta-calendar`), so caches and
-  queues cannot collide.
-- **Store** (`shared/lib/store.js`, `createOfflineStore({ kv, outboxKv, remote, sort })`):
-  the whole record set lives on the device (`listAllContacts` / `listAllTasks` page through),
-  so listing, searching, sorting and the A–Z scrubber are all client-side — **there is no
-  pagination UI**. `refresh()` reconciles with the server but **skips records with pending
-  changes** in both directions: otherwise it would overwrite an offline edit with the
-  server's stale copy, or delete an offline-created record the server has never heard of.
-  `update()` takes a **complete body** — the API's PUT is a full replacement, so a partial
-  payload wipes fields when it eventually syncs.
-- **Outbox** (`shared/lib/outbox.js`): a durable, ordered queue (monotonic `seq`, sequence
-  derived from storage so restarts continue rather than replay). Coalescing at enqueue:
-  create+delete cancels both; update+update keeps the last; update folds into a pending
-  create (an update against an unsynced id would 404); delete drops a pending update.
-- **Sync** (`shared/lib/sync.js`): `flush()` is **serialized** (start-up and the `online`
-  event routinely fire together). Per-operation failure policy: **401** stops and keeps the
-  queue for after re-auth; **404** drops the op and reconciles locally; **422** drops the op
-  and reports it (a poison op must never wedge the queue); anything else is transient — stop
-  and retry next flush, preserving order.
-- **Temporary ids**: records created offline get a `local-` id and appear immediately.
-  When the create syncs, the server's record replaces it and `remapRecordId` repoints any
-  queued ops at the real id. Operations are flagged `sending` before the request leaves, and
-  coalescing skips those — **folding an edit into an already-sent create would silently
-  drop it**. The contacts form returns to the list after create, since the temp id is about
-  to change.
-
-**Conflict resolution is last-write-wins, and this loses data by design.** Two devices
-editing the same contact offline means the later sync silently overwrites the earlier. The
-Contacts API exposes no version, ETag or `updated_at`, so a client cannot detect that a
-record changed underneath it, and the backend is fixed. Related: a create whose response is
-lost (network drop after the server committed) will be resent and **duplicate the record** —
-the API has no idempotency key. Both are accepted, documented trade-offs of keeping the
-backend unchanged, not oversights.
-
-**The calendar's local set grows without bound, by decision.** The Events API has no date
-filter, so the app fetches every event and keeps every one. That makes any month instantly
-reachable offline and matches how contacts and tasks work, at the cost of a first sync that
-gets slower the more history a user accumulates. The alternative considered — fetch everything
-but keep only a rolling window — was rejected because navigating outside the window offline
-shows an empty month, which reads as data loss. Revisit if it bites.
-
-### Per-app specifics
-
-**Contacts** (`resources/pwa/contacts/`) — list, detail and form views; ordering and grouping
-come from `lib/alphabet.js`, which also drives the bottom-pinned A–Z scrubber (accent- and
-case-insensitive, `#` bucket for names that do not start with a letter).
-
-**Tasks** (`resources/pwa/tasks/`) — a single list view: quick-add, Open/Completed split,
-complete/reopen toggle, edit-in-modal and confirm-delete, so there is no detail or form route
-to deep-link to. `lib/ordering.js` sorts open tasks first (soonest due date, undated last,
-ties by title) and completed tasks below, most recently completed first; `isOverdue` marks an
-open task whose due date has passed. `due_at` may be date-only or a datetime and both shapes
-appear in the same list, so ordering compares them via `Date.parse`.
-
-**Completion is client-stamped, and this is the one place a PWA deliberately ignores an API
-endpoint.** `POST /tasks/{id}/complete` stamps `completed_at` server-side, which offline
-would record the moment the queue happened to drain — possibly days after the user ticked the
-box. So `store.complete(task)` is an ordinary update carrying `completed_at` from the device
-clock, and behaves identically online and offline. The endpoint remains in the API for other
-clients but **has no frontend consumer**. The cost is that a skewed device clock stamps a
-skewed time and last-write-wins cannot detect it.
-
-**Calendar** (`resources/pwa/calendar/`) — a single Monday-first month grid: prev/next/today,
-event chips with timed vs all-day styling, click a day to create or a chip to edit, all in a
-modal. Month navigation is pure client-side arithmetic (`lib/month.js`) over the local set, so
-any month is reachable offline, not just ones already visited. The API has no date filter, so
-the app pulls **every** event and groups them client-side — unbounded by decision (see below).
-
-**The calendar mirrors the API's normalization client-side** (`lib/defaults.js`), which no
-other app has to do. The Events API is deliberately forgiving: it fills a blank title, defaults
-`end_at` to `start_at + 1 hour` and snaps all-day events. Offline there is no server to do
-that, so an event created with no end time would have none until it synced and would then
-visibly change. `buildEventBody` applies the same rules locally. **This is duplication and the
-two copies can drift** — if the API's defaults change, `defaults.js` changes with them. It is
-the accepted cost of the grid not rearranging itself under the user.
-
-**All-day events are keyed by calendar date, not local time** (`dayKeyFor` in `lib/month.js`).
-A timed event resolves in local time, because it happens at an instant. An all-day event on 1
-August is 1 August everywhere — but the API stores it as midnight UTC, and resolving *that*
-locally drags it onto 31 July for anyone west of UTC. Keying all-day events by their date part
-also means the date-only value held for an event created offline and the midnight-UTC value the
-server returns resolve to the same cell, so nothing jumps on sync.
-
-**The sharpest failure mode in the tasks app is a task silently reopening.** The API's PUT is
-a full replacement, so any queued update that omits `completed_at` clears it server-side. That
-is why `buildTaskBody` always returns every field, the store's complete/reopen build their
-body from the whole task, and the edit view carries `completed_at` through unchanged. It is
-covered by tests at every layer (outbox coalescing, sync payload, store round trip, and the
-edit view).
+**If a UI is ever wanted again, it does not belong in this repo.** The API is the product.
 
 ## Styling (Devilsberg brand, dark theme)
 
 Hand-written CSS (no Tailwind), centrally located and **split by function** under
 `public/css/`, mirroring the sibling-project convention (archivus, devilsberg-com). A single
 entry `main.css` `@import`s, in cascade order: `tokens.css` → `base.css` → `layout.css` →
-`components.css` → `utilities.css`. Both the static landing and the SPA shell link
-`/css/main.css` — one source for both.
+`components.css` → `utilities.css`. The landing page links `/css/main.css`; it is now the
+only consumer. The stylesheet is kept whole rather than trimmed to what one page uses —
+the app-shell rules cost nothing and document the house style.
 
 - **Brand**: Devilsberg dark — Onyx (`#0a0a10`) canvas, Ghost White (`#f7f7ff`) text, Blue
   Slate borders/labels, Hot Fuchsia accents/errors, Sea Green for primary-button hover. All
@@ -323,8 +167,8 @@ entry `main.css` `@import`s, in cascade order: `tokens.css` → `base.css` → `
   CDN `@import`).
 - Components: `.btn`/`.btn--primary`/`.btn--ghost`/`.btn--sm`, `.form`/`.field`/`.error`,
   `.wordmark`, plus the app-shell patterns `.nav`, `.list`/`.list__row`, `.toolbar`,
-  `.modal`, `.field__error`, `.app-main`; visible focus affordance; single-column at
-  `max-width: 768px`.
+  `.modal`, `.field__error`, `.app-main` (left over from the deleted frontend, unused
+  today); visible focus affordance; single-column at `max-width: 768px`.
 
 ## Endpoints (so far)
 
@@ -337,12 +181,13 @@ entry `main.css` `@import`s, in cascade order: `tokens.css` → `base.css` → `
 
 ### Contacts (`auth:sanctum`)
 
-Google People-compatible contact records. Full CRUD; **update is PUT-only** (full replacement) — `PATCH` returns `405`.
+Google People-compatible contact records. Full CRUD.
 
 - `GET /api/v1/contacts` — paginated collection (25/page).
 - `POST /api/v1/contacts` — create; `201` with the resource. `display_name` required.
 - `GET /api/v1/contacts/{id}` — one contact; `404` if unknown.
 - `PUT /api/v1/contacts/{id}` — full replacement; `404` if unknown.
+- `PATCH /api/v1/contacts/{id}` — partial update; `404` if unknown. `display_name` still cannot be cleared (`null`/`""` → `422`), and an unreadable `birthday` → `422` with the stored date untouched.
 - `DELETE /api/v1/contacts/{id}` — `204`; `404` if unknown.
 
 **Model** (`App\Models\Contact` extends `BaseModel`; UUID v7 id; **no timestamps**):
@@ -350,18 +195,19 @@ Google People-compatible contact records. Full CRUD; **update is PUT-only** (ful
 
 ### Events (`auth:sanctum`)
 
-Google Calendar-compatible events. Full CRUD; **update is PUT-only** (`PATCH` → `405`). No recurrence, no `status`.
+Google Calendar-compatible events. Full CRUD. No recurrence, no `status`.
 
 - `GET /api/v1/events` — paginated collection (25/page).
 - `POST /api/v1/events` — create; `201`.
 - `GET /api/v1/events/{id}` — one event; `404` if unknown.
 - `PUT /api/v1/events/{id}` — full replacement; `404` if unknown.
+- `PATCH /api/v1/events/{id}` — partial update over the stored event, then re-normalized: a moved `start_at` drags `end_at`, `all_day` snaps the stored bounds. Unreadable `start_at`/`end_at` → `422`, event unmoved.
 - `DELETE /api/v1/events/{id}` — `204`; `404` if unknown.
 
 **Model** (`App\Models\Event` extends `BaseModel`; UUID v7 id; **no timestamps**):
 `id`, `title`, `description`, `location`, `start_at`, `end_at`, `all_day`. Datetimes stored/returned as ISO 8601 UTC (`Z`). Serialized via `App\Http\Resources\EventResource`.
 
-**Forgiving input** (the "minimize computer says no" principle — see CLAUDE.md). Normalization lives in `App\Http\Requests\Concerns\NormalizesEventInput::prepareForValidation()`, shared by store + update. Events are never rejected on these fields:
+**Forgiving input** (the "minimize computer says no" principle — see CLAUDE.md). Normalization lives in `App\Http\Requests\Concerns\NormalizesEventInput::prepareForValidation()`, shared by store, update and patch (patch runs it over the merged record). Events are never rejected on these fields — except an unreadable date on a `PATCH`, see REST & API conventions:
 - `title` → `"Untitled event"` when blank/missing.
 - `start_at` → parsed (tz-less assumed UTC, offsets converted to UTC); falls back to now() if unparseable.
 - `end_at` → `start_at + 1 hour` when missing or before `start_at`; kept when `== start_at`.
@@ -370,13 +216,14 @@ Google Calendar-compatible events. Full CRUD; **update is PUT-only** (`PATCH` �
 
 ### Tasks (`auth:sanctum`)
 
-Google Tasks-compatible to-do items. Full CRUD; **update is PUT-only** (`PATCH` → `405`). No `status` — completion is `completed_at` alone (`null` = open).
+Google Tasks-compatible to-do items. Full CRUD. No `status` — completion is `completed_at` alone (`null` = open).
 
 - `GET /api/v1/tasks` — paginated collection (25/page).
 - `POST /api/v1/tasks` — create; `201`.
 - `GET /api/v1/tasks/{id}` — one task; `404` if unknown.
-- `PUT /api/v1/tasks/{id}` — full replacement; `404` if unknown.
-- `POST /api/v1/tasks/{id}/complete` — **no body**; stamps `completed_at = now()`, returns `200` + the task. Idempotent. **No frontend calls this**: the Tasks PWA stamps completion from the device clock so it works offline (see The PWAs → Per-app specifics). Kept for other clients.
+- `PUT /api/v1/tasks/{id}` — full replacement; `404` if unknown. **Omitting `completed_at` reopens the task** — this is why `PATCH` exists.
+- `PATCH /api/v1/tasks/{id}` — partial update; the safe way to edit a completed task. `completed_at: null` reopens, a value completes, absent leaves it alone. `due_has_time` is re-derived from the merged `due_at` and ignored if sent.
+- `POST /api/v1/tasks/{id}/complete` — **no body**; stamps `completed_at = now()`, returns `200` + the task. Idempotent. Kept for clients that want server-stamped completion; a client that must work offline should send `completed_at` on an ordinary update instead.
 - `DELETE /api/v1/tasks/{id}` — `204`; `404` if unknown.
 
 **Model** (`App\Models\Task` extends `BaseModel`; UUID v7 id; **no timestamps**):
@@ -384,8 +231,8 @@ Google Tasks-compatible to-do items. Full CRUD; **update is PUT-only** (`PATCH` 
 
 **Forgiving input** (`App\Http\Requests\Concerns\NormalizesTaskInput`):
 - `title` → `"Untitled task"` when blank/missing.
-- `due_at` → accepts **date-only OR datetime**; tz-less assumed UTC, offsets converted; unparseable → `null`. Echoed back in the same granularity (date-only → `YYYY-MM-DD`, datetime → ISO 8601 UTC).
-- `completed_at` → datetime in UTC; unparseable → `null`.
-- `PUT` is a full replacement: omitting `completed_at` reopens the task.
+- `due_at` → accepts **date-only OR datetime**; tz-less assumed UTC, offsets converted; unparseable → `null` (on `PATCH`: `422`, see REST & API conventions). Echoed back in the same granularity (date-only → `YYYY-MM-DD`, datetime → ISO 8601 UTC).
+- `completed_at` → datetime in UTC; unparseable → `null` (on `PATCH`: `422`).
+- `PUT` is a full replacement: omitting `completed_at` reopens the task. `PATCH` does not.
 - An empty `POST` body creates a valid open task.
 

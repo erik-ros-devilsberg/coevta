@@ -15,7 +15,9 @@ mirror the Google People / Calendar / Tasks APIs (minimal subset).
   body nor serialized in responses.
 - **Timestamps**: serialized as RFC 3339 / ISO 8601 UTC with a trailing `Z`
   (e.g. `2026-06-24T12:00:00.000000Z`). Date-only fields use `YYYY-MM-DD`.
-- **Update semantics**: update is **PUT-only** (full replacement). `PATCH` → `405`.
+- **Update semantics**: `PUT` is a **full replacement** — every field you leave out is reset
+  to its default (see each resource for what that means). `PATCH` is a **partial update** —
+  only the fields present in the body change. See "Partial updates (PATCH)" below.
 - **Pagination**: collections are paginated, **25 per page** (Laravel paginator envelope:
   `data`, `links`, `meta`).
 - **Ownership**: every record belongs to the authenticated user. Another user's id is
@@ -42,7 +44,7 @@ Gated to `api/*` paths; always JSON:
 | `404` not found | `{ "message": ... }` |
 | `400` bad request | `{ "message": ... }` |
 | `401` unauthenticated / bad credentials | `{ "message": ... }` |
-| `405` method not allowed (e.g. PATCH) | `{ "message": ... }` |
+| `405` method not allowed | `{ "message": ... }` |
 
 ### Forgiving input ("minimize computer says no")
 
@@ -50,6 +52,47 @@ Events and tasks **normalize and coerce** input in `prepareForValidation()` rath
 reject it. Sensible defaults are applied for missing/contradictory values, so these
 resources effectively never `422` on their own fields. Contacts validate strictly except
 that only `display_name` is required. Details under each resource.
+
+### Partial updates (PATCH)
+
+`PATCH /api/v1/{contacts,events,tasks}/{id}` changes **only the fields the body carries**.
+Everything else keeps its stored value. Same response shape and status codes as `PUT`.
+
+- **Absent key** → field unchanged. `PATCH {"title": "New"}` on a task touches nothing else —
+  in particular it does **not** reopen a completed task, which the equivalent `PUT` does.
+- **Explicit `null`** → field cleared: `{"email": null}` clears the email; omitting `email`
+  keeps it. `""` clears a date field too.
+- **`PATCH {}`** is a no-op: `200` with the record unchanged.
+- **Unknown fields** are ignored, not rejected.
+
+The patch is merged onto the stored record and the **whole merged record is then
+normalized**, so the cross-field rules still apply:
+
+```http
+PATCH /api/v1/events/{id}
+{ "start_at": "2026-07-01T14:00:00Z" }        → end_at moves to 15:00 if it was before the new start
+
+PATCH /api/v1/events/{id}
+{ "all_day": true }                            → the stored start/end snap to whole-day bounds
+
+PATCH /api/v1/tasks/{id}
+{ "due_at": "2026-07-12" }                     → due_at loses its time (date-only granularity)
+```
+
+**One deliberate difference from `PUT`: a date PATCH cannot read is a `422`.**
+
+```http
+PUT   /api/v1/tasks/{id}  { …, "due_at": "banana" }   → 200, due_at cleared to null
+PATCH /api/v1/tasks/{id}  { "due_at": "banana" }      → 422 { errors: { due_at: [...] } }, stored value untouched
+```
+
+On a full replacement the client is sending the whole record and coercion is safe. On a
+partial update, silently wiping or moving a stored date because of a typo is worse than
+saying no. Applies to `birthday`, `start_at`, `end_at`, `due_at` and `completed_at`. This is
+the one place the API deliberately steps outside "minimize computer says no".
+
+Contacts keep their one hard rule under PATCH: `display_name` cannot be set to `null` or
+`""` (`422`). No other field can fail validation on any resource.
 
 ---
 
@@ -94,6 +137,11 @@ Requires bearer token. Revokes **only** the token used for the request. **204** 
 Public. `throttle:6,1`. Body `{ "email": "..." }`. Always responds the same way whether
 or not the address exists (no enumeration).
 
+**The reset page is yours to build.** The emailed link points at
+`{FRONTEND_URL}/reset-password?token=…&email=…` — this backend serves no such page (it
+ships no frontend at all). Point `FRONTEND_URL` at your client, read `token` and `email`
+from the query string, and post them to `reset-password` below.
+
 ### `POST /api/v1/reset-password`
 Public. `throttle:6,1`. Applies a new password for a valid token and revokes existing
 tokens.
@@ -111,7 +159,7 @@ Requires bearer token. Returns the authenticated user.
 
 ## Contacts
 
-Google People-compatible records. Full CRUD; update is PUT-only.
+Google People-compatible records. Full CRUD.
 
 | Verb | Path | Result |
 | ---- | ---- | ------ |
@@ -119,6 +167,7 @@ Google People-compatible records. Full CRUD; update is PUT-only.
 | POST | `/api/v1/contacts` | `201` the created contact |
 | GET | `/api/v1/contacts/{id}` | `200` one contact; `404` if unknown |
 | PUT | `/api/v1/contacts/{id}` | `200` full replacement; `404` if unknown |
+| PATCH | `/api/v1/contacts/{id}` | `200` partial update; `404` if unknown |
 | DELETE | `/api/v1/contacts/{id}` | `204`; `404` if unknown |
 
 **Fields**
@@ -167,7 +216,7 @@ Authorization: Bearer <token>
 
 ## Events
 
-Google Calendar-compatible events. Full CRUD; update is PUT-only. No recurrence, no `status`.
+Google Calendar-compatible events. Full CRUD. No recurrence, no `status`.
 
 | Verb | Path | Result |
 | ---- | ---- | ------ |
@@ -175,6 +224,7 @@ Google Calendar-compatible events. Full CRUD; update is PUT-only. No recurrence,
 | POST | `/api/v1/events` | `201` the created event |
 | GET | `/api/v1/events/{id}` | `200` one event; `404` if unknown |
 | PUT | `/api/v1/events/{id}` | `200` full replacement; `404` if unknown |
+| PATCH | `/api/v1/events/{id}` | `200` partial update, re-normalized; `404` if unknown |
 | DELETE | `/api/v1/events/{id}` | `204`; `404` if unknown |
 
 **Fields**
@@ -224,15 +274,16 @@ Authorization: Bearer <token>
 
 ## Tasks
 
-Google Tasks-compatible to-do items. Full CRUD; update is PUT-only. No `status` —
-completion is `completed_at` alone (`null` = open).
+Google Tasks-compatible to-do items. Full CRUD. No `status` — completion is `completed_at`
+alone (`null` = open).
 
 | Verb | Path | Result |
 | ---- | ---- | ------ |
 | GET | `/api/v1/tasks` | `200` paginated collection (25/page) |
 | POST | `/api/v1/tasks` | `201` the created task |
 | GET | `/api/v1/tasks/{id}` | `200` one task; `404` if unknown |
-| PUT | `/api/v1/tasks/{id}` | `200` full replacement; `404` if unknown |
+| PUT | `/api/v1/tasks/{id}` | `200` full replacement — **omitting `completed_at` reopens the task**; `404` if unknown |
+| PATCH | `/api/v1/tasks/{id}` | `200` partial update — safe to edit a completed task; `404` if unknown |
 | POST | `/api/v1/tasks/{id}/complete` | `200` the task — **no body**; stamps `completed_at = now()`. Idempotent |
 | DELETE | `/api/v1/tasks/{id}` | `204`; `404` if unknown |
 

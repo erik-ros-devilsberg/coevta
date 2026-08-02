@@ -15,22 +15,6 @@
 /.zed
 /auth.json
 /build
-/node_modules
-/public/build
-/public/spa
-# Build artifacts only — the PWA's shell, manifest, icons and sw.js in the same
-# directory are committed static files.
-/public/contacts/app.js
-/public/contacts/app-*.js
-/public/contacts/app.css
-/public/tasks/app.js
-/public/tasks/app-*.js
-/public/tasks/app.css
-/public/calendar/app.js
-/public/calendar/app-*.js
-/public/calendar/app.css
-/public/fonts-manifest.dev.json
-/public/hot
 /public/storage
 /storage/*.key
 /storage/pail

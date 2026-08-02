@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Calendar">
-	<!-- Maskable variant: the glyph sits inside the 80% safe zone so platforms
-	     that crop to a circle or squircle cannot clip it. Placeholder — see the
-	     branding sprint. -->
-	<rect width="512" height="512" fill="#0a0a10" />
-	<rect x="144" y="168" width="224" height="200" rx="24" fill="none" stroke="#f7f7ff" stroke-width="28" />
-	<path d="M144 232h224" stroke="#f7f7ff" stroke-width="28" stroke-linecap="round" />
-	<path d="M200 144v48M312 144v48" stroke="#f7f7ff" stroke-width="28" stroke-linecap="round" />
-</svg>

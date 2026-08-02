@@ -37,17 +37,23 @@ Route::prefix('v1')->group(function () {
 		// Revoke the token used for the current request.
 		Route::post('/logout', [ApiLoginController::class, 'logout'])->name('api.logout');
 
-		// Contacts: full CRUD. Update is PUT-only (full replacement) — no PATCH.
+		// Contacts: full CRUD. PUT replaces the whole record; PATCH changes only
+		// the fields the body carries. They are separate actions because they
+		// validate differently — see PatchContactRequest.
 		Route::apiResource('contacts', ContactController::class)->except('update');
 		Route::put('contacts/{contact}', [ContactController::class, 'update'])->name('contacts.update');
+		Route::patch('contacts/{contact}', [ContactController::class, 'patch'])->name('contacts.patch');
 
-		// Events: full CRUD. Update is PUT-only (full replacement) — no PATCH.
+		// Events: full CRUD (PUT replaces, PATCH updates in part).
 		Route::apiResource('events', EventController::class)->except('update');
 		Route::put('events/{event}', [EventController::class, 'update'])->name('events.update');
+		Route::patch('events/{event}', [EventController::class, 'patch'])->name('events.patch');
 
-		// Tasks: full CRUD (PUT-only update) + a no-body complete convenience action.
+		// Tasks: full CRUD (PUT replaces, PATCH updates in part) + a no-body
+		// complete convenience action.
 		Route::apiResource('tasks', TaskController::class)->except('update');
 		Route::put('tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
+		Route::patch('tasks/{task}', [TaskController::class, 'patch'])->name('tasks.patch');
 		Route::post('tasks/{task}/complete', [TaskController::class, 'complete'])->name('tasks.complete');
 	});
 });

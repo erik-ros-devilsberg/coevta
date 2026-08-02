@@ -37,6 +37,7 @@ class TaskApiTest extends TestCase
 			'show' => ['get', '/api/v1/tasks/some-id'],
 			'store' => ['post', '/api/v1/tasks'],
 			'update' => ['put', '/api/v1/tasks/some-id'],
+			'patch' => ['patch', '/api/v1/tasks/some-id'],
 			'destroy' => ['delete', '/api/v1/tasks/some-id'],
 			'complete' => ['post', '/api/v1/tasks/some-id/complete'],
 		];
@@ -309,12 +310,188 @@ class TaskApiTest extends TestCase
 		$this->putJson("/api/v1/tasks/{$other->id}", ['title' => 'X'])->assertNotFound();
 	}
 
-	public function test_patch_is_not_allowed(): void
+	// --- Patch (partial update) ---------------------------------------------
+
+	public function test_patch_a_title_leaves_a_completed_task_completed(): void
+	{
+		// The reason this endpoint exists: the equivalent PUT reopens the task.
+		$this->actAsUser();
+		$task = Task::factory()->for($this->user)->create([
+			'title' => 'Old',
+			'completed_at' => '2026-07-01T09:00:00Z',
+		]);
+
+		$response = $this->patchJson("/api/v1/tasks/{$task->id}", ['title' => 'New']);
+
+		$response->assertOk();
+		$response->assertJsonPath('data.title', 'New');
+		$response->assertJsonPath('data.completed_at', '2026-07-01T09:00:00.000000Z');
+		$this->assertNotNull($task->fresh()->completed_at);
+	}
+
+	public function test_patch_completed_at_null_reopens_a_task(): void
+	{
+		$this->actAsUser();
+		$task = Task::factory()->for($this->user)->create(['completed_at' => now()]);
+
+		$this->patchJson("/api/v1/tasks/{$task->id}", ['completed_at' => null])
+			->assertOk()
+			->assertJsonPath('data.completed_at', null);
+
+		$this->assertNull($task->fresh()->completed_at);
+	}
+
+	public function test_patch_completed_at_completes_an_open_task(): void
+	{
+		$this->actAsUser();
+		$task = Task::factory()->for($this->user)->create(['completed_at' => null]);
+
+		$this->patchJson("/api/v1/tasks/{$task->id}", ['completed_at' => '2026-07-02T08:30:00Z'])
+			->assertOk()
+			->assertJsonPath('data.completed_at', '2026-07-02T08:30:00.000000Z');
+
+		$this->assertNotNull($task->fresh()->completed_at);
+	}
+
+	public function test_patch_changes_only_the_field_it_carries(): void
+	{
+		$this->actAsUser();
+		$task = Task::factory()->for($this->user)->create([
+			'title' => 'Write tests',
+			'notes' => 'Start with the failing one',
+			'due_at' => '2026-07-10T17:00:00Z',
+			'due_has_time' => true,
+			'completed_at' => null,
+		]);
+
+		$response = $this->patchJson("/api/v1/tasks/{$task->id}", ['title' => 'Write more tests']);
+
+		$response->assertOk();
+		$response->assertJsonPath('data.title', 'Write more tests');
+		$response->assertJsonPath('data.notes', 'Start with the failing one');
+		$response->assertJsonPath('data.due_at', '2026-07-10T17:00:00.000000Z');
+		$response->assertJsonPath('data.completed_at', null);
+	}
+
+	public function test_patch_with_an_explicit_null_clears_that_field_only(): void
+	{
+		$this->actAsUser();
+		$task = Task::factory()->for($this->user)->create([
+			'title' => 'Keep me',
+			'notes' => 'Drop me',
+			'due_at' => '2026-07-10T17:00:00Z',
+			'due_has_time' => true,
+		]);
+
+		$response = $this->patchJson("/api/v1/tasks/{$task->id}", ['notes' => null]);
+
+		$response->assertOk();
+		$response->assertJsonPath('data.notes', null);
+		$response->assertJsonPath('data.title', 'Keep me');
+		$response->assertJsonPath('data.due_at', '2026-07-10T17:00:00.000000Z');
+	}
+
+	public function test_patch_due_at_to_a_date_only_value_drops_the_time(): void
+	{
+		$this->actAsUser();
+		$task = Task::factory()->for($this->user)->create([
+			'due_at' => '2026-07-10T17:00:00Z',
+			'due_has_time' => true,
+		]);
+
+		$this->patchJson("/api/v1/tasks/{$task->id}", ['due_at' => '2026-07-12'])
+			->assertOk()
+			->assertJsonPath('data.due_at', '2026-07-12');
+
+		$this->assertFalse($task->fresh()->due_has_time);
+	}
+
+	public function test_patch_ignores_due_has_time_in_the_body(): void
+	{
+		// Granularity is derived from due_at, never taken from the client.
+		$this->actAsUser();
+		$task = Task::factory()->for($this->user)->create([
+			'due_at' => '2026-07-12',
+			'due_has_time' => false,
+		]);
+
+		$this->patchJson("/api/v1/tasks/{$task->id}", ['due_has_time' => true])
+			->assertOk()
+			->assertJsonPath('data.due_at', '2026-07-12');
+
+		$this->assertFalse($task->fresh()->due_has_time);
+	}
+
+	public function test_patch_rejects_a_date_it_cannot_read_and_keeps_the_stored_one(): void
+	{
+		$this->actAsUser();
+		$task = Task::factory()->for($this->user)->create([
+			'due_at' => '2026-07-10T17:00:00Z',
+			'due_has_time' => true,
+			'completed_at' => '2026-07-01T09:00:00Z',
+		]);
+
+		$this->patchJson("/api/v1/tasks/{$task->id}", ['due_at' => 'banana'])
+			->assertStatus(422)
+			->assertJsonValidationErrors('due_at');
+
+		$this->patchJson("/api/v1/tasks/{$task->id}", ['completed_at' => 'sometime'])
+			->assertStatus(422)
+			->assertJsonValidationErrors('completed_at');
+
+		$fresh = $task->fresh();
+		$this->assertSame('2026-07-10T17:00:00.000000Z', $fresh->due_at?->toIso8601ZuluString('microsecond'));
+		$this->assertSame('2026-07-01T09:00:00.000000Z', $fresh->completed_at?->toIso8601ZuluString('microsecond'));
+	}
+
+	public function test_patch_with_an_empty_body_changes_nothing(): void
+	{
+		$this->actAsUser();
+		$task = Task::factory()->for($this->user)->create([
+			'title' => 'Untouched',
+			'due_at' => '2026-07-12',
+			'due_has_time' => false,
+			'completed_at' => '2026-07-01T09:00:00Z',
+		]);
+
+		$response = $this->patchJson("/api/v1/tasks/{$task->id}", []);
+
+		$response->assertOk();
+		$response->assertJsonPath('data.title', 'Untouched');
+		// Date-only stays date-only — the granularity round-trips.
+		$response->assertJsonPath('data.due_at', '2026-07-12');
+		$response->assertJsonPath('data.completed_at', '2026-07-01T09:00:00.000000Z');
+		$this->assertFalse($task->fresh()->due_has_time);
+	}
+
+	public function test_patch_ignores_a_user_id_in_the_body(): void
 	{
 		$this->actAsUser();
 		$task = Task::factory()->for($this->user)->create();
+		$other = User::factory()->create();
 
-		$this->patchJson("/api/v1/tasks/{$task->id}", ['title' => 'X'])->assertStatus(405);
+		$this->patchJson("/api/v1/tasks/{$task->id}", [
+			'title' => 'Renamed',
+			'user_id' => $other->id,
+		])->assertOk();
+
+		$this->assertSame($this->user->id, $task->fresh()->user_id);
+	}
+
+	public function test_patch_unknown_task_returns_404(): void
+	{
+		$this->actAsUser();
+
+		$this->patchJson('/api/v1/tasks/non-existent', ['title' => 'X'])->assertNotFound();
+	}
+
+	public function test_patch_other_users_task_returns_404(): void
+	{
+		$this->actAsUser();
+		$other = Task::factory()->for(User::factory()->create())->create(['title' => 'Theirs']);
+
+		$this->patchJson("/api/v1/tasks/{$other->id}", ['title' => 'Mine'])->assertNotFound();
+		$this->assertSame('Theirs', $other->fresh()->title);
 	}
 
 	public function test_destroy_removes_a_task(): void

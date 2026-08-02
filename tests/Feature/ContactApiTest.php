@@ -51,6 +51,7 @@ class ContactApiTest extends TestCase
 			'show' => ['get', '/api/v1/contacts/some-id'],
 			'store' => ['post', '/api/v1/contacts'],
 			'update' => ['put', '/api/v1/contacts/some-id'],
+			'patch' => ['patch', '/api/v1/contacts/some-id'],
 			'destroy' => ['delete', '/api/v1/contacts/some-id'],
 		];
 	}
@@ -270,14 +271,141 @@ class ContactApiTest extends TestCase
 		$response->assertJsonValidationErrors('display_name');
 	}
 
-	public function test_patch_is_not_allowed(): void
+	// --- Patch (partial update) ---------------------------------------------
+
+	public function test_patch_changes_only_the_field_it_carries(): void
+	{
+		$this->actAsUser();
+		$contact = Contact::factory()->for($this->user)->create($this->validPayload());
+
+		$response = $this->patchJson("/api/v1/contacts/{$contact->id}", ['display_name' => 'Ada King']);
+
+		$response->assertOk();
+		$response->assertJsonPath('data.display_name', 'Ada King');
+		// Every field the patch did not mention keeps its stored value.
+		$response->assertJsonPath('data.given_name', 'Ada');
+		$response->assertJsonPath('data.family_name', 'Lovelace');
+		$response->assertJsonPath('data.email', 'ada@example.com');
+		$response->assertJsonPath('data.phone', '+44 20 7946 0000');
+		$response->assertJsonPath('data.organization', 'Analytical Engines Ltd');
+		$response->assertJsonPath('data.notes', 'First programmer.');
+		$response->assertJsonPath('data.address', '12 Mayfair, London');
+		$response->assertJsonPath('data.birthday', '1815-12-10');
+	}
+
+	public function test_patch_with_an_explicit_null_clears_that_field_only(): void
+	{
+		$this->actAsUser();
+		$contact = Contact::factory()->for($this->user)->create($this->validPayload());
+
+		$response = $this->patchJson("/api/v1/contacts/{$contact->id}", ['email' => null]);
+
+		$response->assertOk();
+		$response->assertJsonPath('data.email', null);
+		// The neighbouring optional fields survive the clear.
+		$response->assertJsonPath('data.phone', '+44 20 7946 0000');
+		$response->assertJsonPath('data.notes', 'First programmer.');
+		$this->assertNull($contact->fresh()->email);
+	}
+
+	public function test_patch_can_clear_the_birthday(): void
+	{
+		$this->actAsUser();
+		$contact = Contact::factory()->for($this->user)->create($this->validPayload());
+
+		$this->patchJson("/api/v1/contacts/{$contact->id}", ['birthday' => null])
+			->assertOk()
+			->assertJsonPath('data.birthday', null);
+
+		$this->assertNull($contact->fresh()->birthday);
+	}
+
+	public function test_patch_still_requires_a_display_name(): void
+	{
+		$this->actAsUser();
+		$contact = Contact::factory()->for($this->user)->create(['display_name' => 'Ada Lovelace']);
+
+		// A contact with no name is not something we can sensibly default, so
+		// this is the one field a patch cannot clear.
+		$this->patchJson("/api/v1/contacts/{$contact->id}", ['display_name' => null])
+			->assertStatus(422)
+			->assertJsonValidationErrors('display_name');
+
+		$this->patchJson("/api/v1/contacts/{$contact->id}", ['display_name' => ''])
+			->assertStatus(422)
+			->assertJsonValidationErrors('display_name');
+
+		$this->assertSame('Ada Lovelace', $contact->fresh()->display_name);
+	}
+
+	public function test_patch_rejects_a_date_it_cannot_read_and_keeps_the_stored_one(): void
+	{
+		$this->actAsUser();
+		$contact = Contact::factory()->for($this->user)->create($this->validPayload());
+
+		// Unlike PUT, a patch does not coerce garbage to null — silently wiping
+		// a stored date on a typo is worse than saying no.
+		$this->patchJson("/api/v1/contacts/{$contact->id}", ['birthday' => 'banana'])
+			->assertStatus(422)
+			->assertJsonValidationErrors('birthday');
+
+		$this->assertSame('1815-12-10', $contact->fresh()->birthday?->format('Y-m-d'));
+	}
+
+	public function test_patch_with_an_empty_body_changes_nothing(): void
+	{
+		$this->actAsUser();
+		$contact = Contact::factory()->for($this->user)->create($this->validPayload());
+
+		$response = $this->patchJson("/api/v1/contacts/{$contact->id}", []);
+
+		$response->assertOk();
+		$response->assertJsonPath('data.display_name', 'Ada Lovelace');
+		$response->assertJsonPath('data.email', 'ada@example.com');
+		$response->assertJsonPath('data.birthday', '1815-12-10');
+	}
+
+	public function test_patch_ignores_unknown_fields(): void
+	{
+		$this->actAsUser();
+		$contact = Contact::factory()->for($this->user)->create($this->validPayload());
+
+		$this->patchJson("/api/v1/contacts/{$contact->id}", ['nickname' => 'The Countess'])
+			->assertOk()
+			->assertJsonMissingPath('data.nickname');
+	}
+
+	public function test_patch_ignores_a_user_id_in_the_body(): void
 	{
 		$this->actAsUser();
 		$contact = Contact::factory()->for($this->user)->create();
+		$other = User::factory()->create();
 
-		$response = $this->patchJson("/api/v1/contacts/{$contact->id}", $this->validPayload());
+		$this->patchJson("/api/v1/contacts/{$contact->id}", [
+			'display_name' => 'Renamed',
+			'user_id' => $other->id,
+		])->assertOk();
 
-		$response->assertStatus(405);
+		$this->assertSame($this->user->id, $contact->fresh()->user_id);
+	}
+
+	public function test_patch_unknown_contact_returns_404(): void
+	{
+		$this->actAsUser();
+
+		$this->patchJson('/api/v1/contacts/non-existent', ['display_name' => 'X'])
+			->assertNotFound();
+	}
+
+	public function test_patch_other_users_contact_returns_404(): void
+	{
+		$this->actAsUser();
+		$other = Contact::factory()->for(User::factory()->create())->create(['display_name' => 'Theirs']);
+
+		$this->patchJson("/api/v1/contacts/{$other->id}", ['display_name' => 'Mine'])
+			->assertNotFound();
+
+		$this->assertSame('Theirs', $other->fresh()->display_name);
 	}
 
 	// --- Destroy ------------------------------------------------------------

@@ -12,6 +12,16 @@ A standalone, embeddable Laravel backend that exposes three resources — contac
 - **REST** — JSON over HTTP, resource-oriented routing
 - **PHPUnit** — automated testing (TDD; tests live in `/tests`)
 - **PHPStan** (via Larastan) — static analysis / code quality
+- **No frontend framework.** This repo is the backend. There is no Vue, no npm, no Vite,
+  no build step — a client is someone else's project. The only page served is the static
+  landing page at `public/landing.html`; `routes/web.php` has exactly one route.
+- **CSS**: no Tailwind. Central CSS in `public/css/` (`main.css` @imports the parts), built
+  on the existing BEM CSS in `../devilsberg.com/src/css/`. Adapt and extend rather than
+  fork-and-forget.
+  - **Keep CSS lean. Reuse shared classes; do not mint a bespoke class per component.** Add
+    a modifier only when a real visual variant is needed. Prefer extending an existing rule
+    over adding a new block.
+
 
 ## Recommended additional quality controls
 
