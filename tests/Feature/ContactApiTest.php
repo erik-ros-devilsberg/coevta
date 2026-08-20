@@ -67,7 +67,7 @@ class ContactApiTest extends TestCase
 
 	// --- Index --------------------------------------------------------------
 
-	public function test_index_returns_paginated_collection(): void
+	public function test_index_returns_the_complete_unpaginated_collection(): void
 	{
 		$this->actAsUser();
 		Contact::factory()->for($this->user)->count(30)->create();
@@ -75,9 +75,9 @@ class ContactApiTest extends TestCase
 		$response = $this->getJson('/api/v1/contacts');
 
 		$response->assertOk();
-		$response->assertJsonCount(25, 'data');
-		$response->assertJsonPath('meta.per_page', 25);
-		$response->assertJsonPath('meta.total', 30);
+		$response->assertJsonCount(30, 'data');
+		$response->assertJsonMissingPath('meta');
+		$response->assertJsonMissingPath('links');
 	}
 
 	public function test_index_returns_only_the_authenticated_users_contacts(): void
@@ -90,7 +90,6 @@ class ContactApiTest extends TestCase
 
 		$response->assertOk();
 		$response->assertJsonCount(2, 'data');
-		$response->assertJsonPath('meta.total', 2);
 	}
 
 	// --- Show ---------------------------------------------------------------

@@ -183,7 +183,7 @@ the app-shell rules cost nothing and document the house style.
 
 Google People-compatible contact records. Full CRUD.
 
-- `GET /api/v1/contacts` — paginated collection (25/page).
+- `GET /api/v1/contacts` — full collection, unpaginated (no `meta`/`links`).
 - `POST /api/v1/contacts` — create; `201` with the resource. `display_name` required.
 - `GET /api/v1/contacts/{id}` — one contact; `404` if unknown.
 - `PUT /api/v1/contacts/{id}` — full replacement; `404` if unknown.
@@ -197,7 +197,7 @@ Google People-compatible contact records. Full CRUD.
 
 Google Calendar-compatible events. Full CRUD. No recurrence, no `status`.
 
-- `GET /api/v1/events` — paginated collection (25/page).
+- `GET /api/v1/events` — **future events only**, unpaginated (no `meta`/`links`), ordered by `start_at` ascending. The cut-off is `end_at >= now()`, so an event that has started but not yet finished is still returned; anything already finished is omitted. Past events remain reachable via `GET /api/v1/events/{id}`.
 - `POST /api/v1/events` — create; `201`.
 - `GET /api/v1/events/{id}` — one event; `404` if unknown.
 - `PUT /api/v1/events/{id}` — full replacement; `404` if unknown.
@@ -218,7 +218,7 @@ Google Calendar-compatible events. Full CRUD. No recurrence, no `status`.
 
 Google Tasks-compatible to-do items. Full CRUD. No `status` — completion is `completed_at` alone (`null` = open).
 
-- `GET /api/v1/tasks` — paginated collection (25/page).
+- `GET /api/v1/tasks` — full collection, unpaginated (no `meta`/`links`).
 - `POST /api/v1/tasks` — create; `201`.
 - `GET /api/v1/tasks/{id}` — one task; `404` if unknown.
 - `PUT /api/v1/tasks/{id}` — full replacement; `404` if unknown. **Omitting `completed_at` reopens the task** — this is why `PATCH` exists.

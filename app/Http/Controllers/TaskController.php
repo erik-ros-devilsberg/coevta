@@ -20,7 +20,8 @@ class TaskController extends Controller
 		/** @var User $user */
 		$user = $request->user();
 
-		return TaskResource::collection($user->tasks()->paginate(25));
+		// Tasks are returned in full — no pagination; clients get the whole list.
+		return TaskResource::collection($user->tasks()->get());
 	}
 
 	public function store(StoreTaskRequest $request): JsonResponse

@@ -52,30 +52,93 @@ class EventApiTest extends TestCase
 
 	// --- Index / Show -------------------------------------------------------
 
-	public function test_index_returns_paginated_collection(): void
+	/**
+	 * Create an event for the given user starting the given number of hours
+	 * from now, lasting an hour.
+	 */
+	private function eventStartingIn(User $user, int $hours): Event
+	{
+		$start = Carbon::now('UTC')->addHours($hours);
+
+		return Event::factory()->for($user)->create([
+			'start_at' => $start,
+			'end_at' => $start->copy()->addHour(),
+		]);
+	}
+
+	public function test_index_returns_all_future_events_unpaginated(): void
 	{
 		$this->actAsUser();
-		Event::factory()->for($this->user)->count(30)->create();
+
+		for ($i = 1; $i <= 30; $i++) {
+			$this->eventStartingIn($this->user, $i);
+		}
 
 		$response = $this->getJson('/api/v1/events');
 
 		$response->assertOk();
-		$response->assertJsonCount(25, 'data');
-		$response->assertJsonPath('meta.per_page', 25);
-		$response->assertJsonPath('meta.total', 30);
+		$response->assertJsonCount(30, 'data');
+		$response->assertJsonMissingPath('meta');
+		$response->assertJsonMissingPath('links');
+	}
+
+	public function test_index_omits_events_that_have_already_finished(): void
+	{
+		$this->actAsUser();
+		$past = $this->eventStartingIn($this->user, -5);
+		$future = $this->eventStartingIn($this->user, 5);
+
+		$response = $this->getJson('/api/v1/events');
+
+		$response->assertOk();
+		$response->assertJsonCount(1, 'data');
+		$response->assertJsonPath('data.0.id', $future->id);
+		$response->assertJsonMissing(['id' => $past->id]);
+	}
+
+	public function test_index_keeps_an_event_that_is_currently_running(): void
+	{
+		$this->actAsUser();
+		$now = Carbon::now('UTC');
+		$running = Event::factory()->for($this->user)->create([
+			'start_at' => $now->copy()->subMinutes(30),
+			'end_at' => $now->copy()->addMinutes(30),
+		]);
+
+		$response = $this->getJson('/api/v1/events');
+
+		$response->assertOk();
+		$response->assertJsonCount(1, 'data');
+		$response->assertJsonPath('data.0.id', $running->id);
+	}
+
+	public function test_index_returns_events_in_chronological_order(): void
+	{
+		$this->actAsUser();
+		$later = $this->eventStartingIn($this->user, 48);
+		$sooner = $this->eventStartingIn($this->user, 2);
+
+		$response = $this->getJson('/api/v1/events');
+
+		$response->assertOk();
+		$response->assertJsonPath('data.0.id', $sooner->id);
+		$response->assertJsonPath('data.1.id', $later->id);
 	}
 
 	public function test_index_returns_only_the_authenticated_users_events(): void
 	{
 		$this->actAsUser();
-		Event::factory()->for($this->user)->count(2)->create();
-		Event::factory()->for(User::factory()->create())->count(3)->create();
+		$other = User::factory()->create();
+		$this->eventStartingIn($this->user, 1);
+		$this->eventStartingIn($this->user, 2);
+		$this->eventStartingIn($other, 3);
+		$this->eventStartingIn($other, 4);
+		$this->eventStartingIn($other, 5);
 
 		$response = $this->getJson('/api/v1/events');
 
 		$response->assertOk();
 		$response->assertJsonCount(2, 'data');
-		$response->assertJsonPath('meta.total', 2);
 	}
 
 	public function test_show_returns_a_single_event(): void

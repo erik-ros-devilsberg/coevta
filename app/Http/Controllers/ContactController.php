@@ -19,7 +19,8 @@ class ContactController extends Controller
 		/** @var User $user */
 		$user = $request->user();
 
-		return ContactResource::collection($user->contacts()->paginate(25));
+		// Contacts are returned in full — no pagination; clients get the whole list.
+		return ContactResource::collection($user->contacts()->get());
 	}
 
 	public function store(StoreContactRequest $request): JsonResponse

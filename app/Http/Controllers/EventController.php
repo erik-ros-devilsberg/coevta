@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Illuminate\Support\Carbon;
 
 class EventController extends Controller
 {
@@ -19,7 +20,15 @@ class EventController extends Controller
 		/** @var User $user */
 		$user = $request->user();
 
-		return EventResource::collection($user->events()->paginate(25));
+		// Future events only, unpaginated, in calendar order. An event that has
+		// started but not yet finished still lies ahead of the caller, so the
+		// cut-off is end_at rather than start_at.
+		$events = $user->events()
+			->where('end_at', '>=', Carbon::now('UTC'))
+			->orderBy('start_at')
+			->get();
+
+		return EventResource::collection($events);
 	}
 
 	public function store(StoreEventRequest $request): JsonResponse
