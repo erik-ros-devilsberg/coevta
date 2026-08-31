@@ -18,8 +18,8 @@ mirror the Google People / Calendar / Tasks APIs (minimal subset).
 - **Update semantics**: `PUT` is a **full replacement** — every field you leave out is reset
   to its default (see each resource for what that means). `PATCH` is a **partial update** —
   only the fields present in the body change. See "Partial updates (PATCH)" below.
-- **Pagination**: collections are paginated, **25 per page** (Laravel paginator envelope:
-  `data`, `links`, `meta`).
+- **Collections**: index endpoints are **not paginated** — a bare `data` array with no
+  `links`/`meta` envelope.
 - **Ownership**: every record belongs to the authenticated user. Another user's id is
   reported as `404` (never `403`) — existence is not disclosed.
 
@@ -163,7 +163,7 @@ Google People-compatible records. Full CRUD.
 
 | Verb | Path | Result |
 | ---- | ---- | ------ |
-| GET | `/api/v1/contacts` | `200` paginated collection (25/page) |
+| GET | `/api/v1/contacts` | `200` full collection, unpaginated |
 | POST | `/api/v1/contacts` | `201` the created contact |
 | GET | `/api/v1/contacts/{id}` | `200` one contact; `404` if unknown |
 | PUT | `/api/v1/contacts/{id}` | `200` full replacement; `404` if unknown |
@@ -220,7 +220,7 @@ Google Calendar-compatible events. Full CRUD. No recurrence, no `status`.
 
 | Verb | Path | Result |
 | ---- | ---- | ------ |
-| GET | `/api/v1/events` | `200` paginated collection (25/page) |
+| GET | `/api/v1/events` | `200` future events only, unpaginated |
 | POST | `/api/v1/events` | `201` the created event |
 | GET | `/api/v1/events/{id}` | `200` one event; `404` if unknown |
 | PUT | `/api/v1/events/{id}` | `200` full replacement; `404` if unknown |
@@ -279,7 +279,7 @@ alone (`null` = open).
 
 | Verb | Path | Result |
 | ---- | ---- | ------ |
-| GET | `/api/v1/tasks` | `200` paginated collection (25/page) |
+| GET | `/api/v1/tasks` | `200` full collection, unpaginated |
 | POST | `/api/v1/tasks` | `201` the created task |
 | GET | `/api/v1/tasks/{id}` | `200` one task; `404` if unknown |
 | PUT | `/api/v1/tasks/{id}` | `200` full replacement — **omitting `completed_at` reopens the task**; `404` if unknown |
