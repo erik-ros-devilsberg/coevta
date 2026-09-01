@@ -218,7 +218,7 @@ class TaskApiTest extends TestCase
 
 		$data = $this->getJson("/api/v1/tasks/{$task->id}")->json('data');
 
-		$expected = ['id', 'title', 'notes', 'due_at', 'completed_at'];
+		$expected = ['id', 'title', 'notes', 'due_at', 'duration', 'completed_at'];
 		sort($expected);
 		$actual = array_keys($data);
 		sort($actual);
@@ -234,6 +234,130 @@ class TaskApiTest extends TestCase
 		$this->getJson("/api/v1/tasks/{$task->id}")
 			->assertOk()
 			->assertJsonMissingPath('data.user_id');
+	}
+
+	// --- Duration -----------------------------------------------------------
+
+	public function test_store_accepts_a_duration_in_minutes(): void
+	{
+		$this->actAsUser();
+
+		$response = $this->postJson('/api/v1/tasks', ['title' => 'Mow lawn', 'duration' => 45]);
+
+		$response->assertCreated();
+		// An integer in the JSON, not a string.
+		$this->assertSame(45, $response->json('data.duration'));
+		$this->assertDatabaseHas('tasks', ['id' => $response->json('data.id'), 'duration' => 45]);
+	}
+
+	public function test_store_without_duration_leaves_it_null(): void
+	{
+		$this->actAsUser();
+
+		$this->postJson('/api/v1/tasks', ['title' => 'Mow lawn'])
+			->assertCreated()
+			->assertJsonPath('data.duration', null);
+	}
+
+	/**
+	 * Every value we can make sense of is coerced; the rest become null. None
+	 * of these is a 422.
+	 */
+	public static function durationProvider(): array
+	{
+		return [
+			'numeric string' => ['45', 45],
+			'fraction rounds up' => [44.6, 45],
+			'fraction rounds down' => [44.4, 44],
+			'zero' => [0, null],
+			'negative' => [-10, null],
+			'word' => ['soon', null],
+			'boolean' => [true, null],
+			'array' => [[], null],
+			'null' => [null, null],
+			'above the ceiling clamps' => [20000, 10080],
+			'the ceiling itself' => [10080, 10080],
+		];
+	}
+
+	#[DataProvider('durationProvider')]
+	public function test_duration_is_normalized_rather_than_rejected(mixed $sent, ?int $expected): void
+	{
+		$this->actAsUser();
+
+		$this->postJson('/api/v1/tasks', ['title' => 'X', 'duration' => $sent])
+			->assertCreated()
+			->assertJsonPath('data.duration', $expected);
+	}
+
+	#[DataProvider('durationProvider')]
+	public function test_duration_is_normalized_the_same_way_on_patch(mixed $sent, ?int $expected): void
+	{
+		$this->actAsUser();
+		$task = Task::factory()->for($this->user)->create(['duration' => 30]);
+
+		$this->patchJson("/api/v1/tasks/{$task->id}", ['duration' => $sent])
+			->assertOk()
+			->assertJsonPath('data.duration', $expected);
+	}
+
+	public function test_update_without_duration_clears_it(): void
+	{
+		// PUT is a full replacement — an omitted field resets to its default.
+		$this->actAsUser();
+		$task = Task::factory()->for($this->user)->create(['duration' => 60]);
+
+		$this->putJson("/api/v1/tasks/{$task->id}", ['title' => 'Replaced'])
+			->assertOk()
+			->assertJsonPath('data.duration', null);
+
+		$this->assertNull($task->fresh()->duration);
+	}
+
+	public function test_update_can_set_a_duration(): void
+	{
+		$this->actAsUser();
+		$task = Task::factory()->for($this->user)->create(['duration' => null]);
+
+		$this->putJson("/api/v1/tasks/{$task->id}", ['title' => 'Timed', 'duration' => 90])
+			->assertOk()
+			->assertJsonPath('data.duration', 90);
+
+		$this->assertSame(90, $task->fresh()->duration);
+	}
+
+	public function test_patch_duration_leaves_the_other_fields_alone(): void
+	{
+		$this->actAsUser();
+		$task = Task::factory()->for($this->user)->create([
+			'title' => 'Write tests',
+			'notes' => 'Start with the failing one',
+			'due_at' => '2026-07-10T17:00:00Z',
+			'due_has_time' => true,
+			'duration' => null,
+			'completed_at' => null,
+		]);
+
+		$response = $this->patchJson("/api/v1/tasks/{$task->id}", ['duration' => 30]);
+
+		$response->assertOk();
+		$response->assertJsonPath('data.duration', 30);
+		$response->assertJsonPath('data.title', 'Write tests');
+		$response->assertJsonPath('data.notes', 'Start with the failing one');
+		$response->assertJsonPath('data.due_at', '2026-07-10T17:00:00.000000Z');
+		$response->assertJsonPath('data.completed_at', null);
+	}
+
+	public function test_patch_keeps_a_stored_duration_it_does_not_carry(): void
+	{
+		$this->actAsUser();
+		$task = Task::factory()->for($this->user)->create(['duration' => 25]);
+
+		$this->patchJson("/api/v1/tasks/{$task->id}", ['title' => 'Renamed'])
+			->assertOk()
+			->assertJsonPath('data.duration', 25);
+
+		$this->assertSame(25, $task->fresh()->duration);
 	}
 
 	// --- Complete convenience endpoint -------------------------------------

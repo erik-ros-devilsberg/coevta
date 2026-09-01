@@ -22,6 +22,8 @@ class TaskResource extends JsonResource
 			'notes' => $this->notes,
 			// Echo back the granularity we were given: date-only or full UTC datetime.
 			'due_at' => $this->dueAtForResponse(),
+			// Estimated minutes, or null when unknown.
+			'duration' => $this->duration,
 			'completed_at' => $this->completed_at?->toIso8601ZuluString('microsecond'),
 		];
 	}

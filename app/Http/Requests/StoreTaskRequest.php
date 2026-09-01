@@ -29,6 +29,7 @@ class StoreTaskRequest extends FormRequest
 			'notes' => ['nullable', 'string'],
 			'due_at' => ['nullable', 'date'],
 			'due_has_time' => ['required', 'boolean'],
+			'duration' => ['nullable', 'integer', 'min:1', 'max:' . self::MAX_DURATION_MINUTES],
 			'completed_at' => ['nullable', 'date'],
 		];
 	}

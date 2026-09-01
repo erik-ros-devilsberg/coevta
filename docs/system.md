@@ -222,17 +222,20 @@ Google Tasks-compatible to-do items. Full CRUD. No `status` — completion is `c
 - `POST /api/v1/tasks` — create; `201`.
 - `GET /api/v1/tasks/{id}` — one task; `404` if unknown.
 - `PUT /api/v1/tasks/{id}` — full replacement; `404` if unknown. **Omitting `completed_at` reopens the task** — this is why `PATCH` exists.
-- `PATCH /api/v1/tasks/{id}` — partial update; the safe way to edit a completed task. `completed_at: null` reopens, a value completes, absent leaves it alone. `due_has_time` is re-derived from the merged `due_at` and ignored if sent.
+- `PATCH /api/v1/tasks/{id}` — partial update; the safe way to edit a completed task. `completed_at: null` reopens, a value completes, absent leaves it alone. `duration: null` clears it, absent keeps the stored value. `due_has_time` is re-derived from the merged `due_at` and ignored if sent.
 - `POST /api/v1/tasks/{id}/complete` — **no body**; stamps `completed_at = now()`, returns `200` + the task. Idempotent. Kept for clients that want server-stamped completion; a client that must work offline should send `completed_at` on an ordinary update instead.
 - `DELETE /api/v1/tasks/{id}` — `204`; `404` if unknown.
 
 **Model** (`App\Models\Task` extends `BaseModel`; UUID v7 id; **no timestamps**):
-`id`, `title`, `notes`, `due_at`, `completed_at`. Internal `due_has_time` column (not serialized) records whether `due_at` was given as a date or a datetime. Serialized via `App\Http\Resources\TaskResource`.
+`id`, `title`, `notes`, `due_at`, `duration`, `completed_at`. Internal `due_has_time` column (not serialized) records whether `due_at` was given as a date or a datetime. Serialized via `App\Http\Resources\TaskResource`.
+
+`duration` is an optional estimate in **whole minutes** (`null` = unknown), stored as a nullable `unsignedSmallInteger`. Google Tasks has no such field — this is a deliberate extension beyond the Google-compatible minimal set, added because clients otherwise invent their own storage for it. It maps onto an event's `start_at`/`end_at` span when a task is turned into a calendar block.
 
 **Forgiving input** (`App\Http\Requests\Concerns\NormalizesTaskInput`):
 - `title` → `"Untitled task"` when blank/missing.
 - `due_at` → accepts **date-only OR datetime**; tz-less assumed UTC, offsets converted; unparseable → `null` (on `PATCH`: `422`, see REST & API conventions). Echoed back in the same granularity (date-only → `YYYY-MM-DD`, datetime → ISO 8601 UTC).
+- `duration` → whole minutes. Numeric strings accepted, fractions rounded; `0`, negatives and anything unreadable (words, booleans, arrays) → `null`; values above **10080** (7 days) are clamped to that ceiling. Never a `422`.
 - `completed_at` → datetime in UTC; unparseable → `null` (on `PATCH`: `422`).
-- `PUT` is a full replacement: omitting `completed_at` reopens the task. `PATCH` does not.
+- `PUT` is a full replacement: omitting `completed_at` reopens the task — and likewise omitting `duration` clears it. `PATCH` does neither.
 - An empty `POST` body creates a valid open task.
 

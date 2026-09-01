@@ -17,6 +17,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $notes
  * @property Carbon|null $due_at
  * @property bool $due_has_time
+ * @property int|null $duration
  * @property Carbon|null $completed_at
  */
 class Task extends BaseModel
@@ -37,6 +38,7 @@ class Task extends BaseModel
 		'notes',
 		'due_at',
 		'due_has_time',
+		'duration',
 		'completed_at',
 	];
 
@@ -48,6 +50,7 @@ class Task extends BaseModel
 		return [
 			'due_at' => 'datetime',
 			'due_has_time' => 'boolean',
+			'duration' => 'integer',
 			'completed_at' => 'datetime',
 		];
 	}

@@ -24,6 +24,7 @@ class TaskFactory extends Factory
 			'due_at' => Carbon::instance($this->faker->dateTimeBetween('now', '+1 month'))
 				->setTimezone('UTC'),
 			'due_has_time' => true,
+			'duration' => $this->faker->optional()->numberBetween(5, 240),
 			'completed_at' => null,
 		];
 	}

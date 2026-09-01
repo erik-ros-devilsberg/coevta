@@ -11,10 +11,18 @@ use Illuminate\Support\Carbon;
  *  - due_at       → accepts date-only OR datetime; tz-less assumed UTC, offsets
  *                   converted; unparseable → null. The granularity is captured
  *                   in due_has_time so it can be echoed back faithfully.
+ *  - duration     → whole minutes; rounded, clamped to MAX_DURATION_MINUTES,
+ *                   anything zero, negative or unreadable → null
  *  - completed_at → datetime in UTC (tz-less assumed UTC); unparseable → null
  */
 trait NormalizesTaskInput
 {
+	/**
+	 * Seven days. A longer estimate is almost certainly a mistake (milliseconds
+	 * sent as minutes, say), so we clamp rather than reject.
+	 */
+	private const MAX_DURATION_MINUTES = 10080;
+
 	protected function prepareForValidation(): void
 	{
 		$title = $this->input('title');
@@ -24,8 +32,28 @@ trait NormalizesTaskInput
 			'title' => is_string($title) && trim($title) !== '' ? $title : 'Untitled task',
 			'due_at' => $dueAt,
 			'due_has_time' => $dueHasTime,
+			'duration' => $this->normalizeDuration($this->input('duration')),
 			'completed_at' => $this->parseUtcOrNull($this->input('completed_at'))?->toIso8601ZuluString('microsecond'),
 		]);
+	}
+
+	/**
+	 * An estimate in whole minutes, or null when we cannot read one. Numeric
+	 * strings count; booleans and arrays do not.
+	 */
+	private function normalizeDuration(mixed $value): ?int
+	{
+		if (! is_int($value) && ! is_float($value) && ! (is_string($value) && is_numeric(trim($value)))) {
+			return null;
+		}
+
+		$minutes = (int) round((float) $value);
+
+		if ($minutes <= 0) {
+			return null;
+		}
+
+		return min($minutes, self::MAX_DURATION_MINUTES);
 	}
 
 	/**

@@ -22,3 +22,4 @@ Maintained by the agile plugin. One row per sprint — updated by `/agile:shape`
 | PWA Password Reset Access | pwa-password-reset | done | Account-scoped reset link in all three PWA logins plus a central /password-reset-complete confirmation page. |
 | Strip Frontend to Landing Page | strip-frontend-to-landing-page | done | Deleted the Vue SPA, PWAs and Node toolchain; API plus one static landing page remains. |
 | PATCH Partial Updates | patch-partial-updates | done | Adds PATCH partial updates to contacts, events and tasks; PUT unchanged. |
+| Task Duration | task-duration | done | Optional whole-minute duration estimate on tasks, normalized and clamped at 7 days. |
